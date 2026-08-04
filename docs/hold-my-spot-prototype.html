@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hold My Spot — Clickable Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e141b; --panel:#161e27; --panel-2:#1c2630; --panel-3:#222e3a;
+    --line:#2b3947; --line-soft:#222d38;
+    --text:#e9eef3; --muted:#8b9aa9; --muted-2:#697585;
+    --live:#2dd4bf; --next:#f5a623;
+    --wa:#25d366; --qr:#8b7cf6; --rec:#5b9bd5;
+    --bg:#0a0f15; --shadow:0 24px 60px -20px rgba(0,0,0,.6); --r:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'IBM Plex Sans',sans-serif;color:var(--text);line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:0 22px 80px;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(45,212,191,.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(245,166,35,.06), transparent 55%),
+      var(--bg);}
+  .wrap{max-width:1280px;margin:0 auto}
+  .mono{font-family:'IBM Plex Mono',monospace}
+  button{font-family:inherit;cursor:pointer}
+
+  /* header */
+  header{padding:40px 0 22px}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .eyebrow b{color:var(--live)}
+  h1{font-size:clamp(30px,5vw,52px);font-weight:700;letter-spacing:-.03em;line-height:1}
+  .lede{color:var(--muted);max-width:680px;margin-top:14px;font-size:15px}
+  .lede b{color:var(--text)}
+
+  /* try banner + global controls */
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:22px;
+    padding:12px 16px;border:1px solid var(--line);border-radius:11px;
+    background:rgba(45,212,191,.05)}
+  .bar .hint{font-size:13.5px;color:#cfdae4}
+  .bar .hint b{color:#fff}
+  .bar .spacer{flex:1}
+  .gbtn{font-size:12.5px;font-weight:600;border-radius:9px;padding:9px 14px;
+    border:1px solid var(--line);background:var(--panel-3);color:var(--text);
+    display:inline-flex;align-items:center;gap:7px;transition:.15s}
+  .gbtn:hover{border-color:#3a4a5a;transform:translateY(-1px)}
+  .gbtn.on{background:var(--live);color:#06231f;border-color:transparent}
+
+  /* stage layout */
+  .stage{display:grid;grid-template-columns:1fr 360px;gap:24px;margin-top:24px;align-items:start}
+
+  /* ===== console ===== */
+  .console{background:linear-gradient(180deg,var(--panel),#121922);border:1px solid var(--line);
+    border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+  .c-top{display:flex;align-items:center;gap:13px;padding:13px 17px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.015)}
+  .c-logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.01em;font-size:15px}
+  .c-logo .dot{width:9px;height:9px;border-radius:50%;background:var(--live);box-shadow:0 0 0 4px rgba(45,212,191,.16)}
+  .c-logo span{color:var(--muted);font-weight:500;font-size:12px}
+  .c-loc{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);margin-left:4px;
+    padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02)}
+  .c-loc .car{color:var(--muted-2);font-size:10px}
+  .c-live{margin-left:auto;display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .pulse{width:7px;height:7px;border-radius:50%;background:#ef5b6e;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(239,91,110,.5)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(239,91,110,0)}}
+
+  .c-stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+  .stat{padding:14px 18px;border-right:1px solid var(--line-soft)}
+  .stat:last-child{border-right:0}
+  .stat .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2)}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:4px;display:flex;align-items:baseline;gap:5px}
+  .stat .v small{font-size:12px;font-weight:500;color:var(--muted)}
+  .stat .v.good{color:var(--live)}
+
+  .c-body{display:grid;grid-template-columns:1.5fr 1fr}
+  .c-queue{border-right:1px solid var(--line);padding-bottom:10px;min-height:300px}
+  .q-head{display:flex;align-items:center;gap:10px;padding:14px 18px 10px}
+  .q-head h3{font-size:13.5px;font-weight:600}
+  .q-head .count{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:2px 8px}
+  .q-head .legend{margin-left:auto;display:flex;gap:11px;font-size:10.5px;color:var(--muted)}
+  .q-head .legend span{display:flex;align-items:center;gap:5px}
+  .lg-dot{width:8px;height:8px;border-radius:3px}
+
+  .q-row{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:12px;padding:10px 18px;
+    border-top:1px solid var(--line-soft);transition:background .2s}
+  .q-row:hover{background:rgba(255,255,255,.02)}
+  .q-row.prov{background:linear-gradient(90deg,rgba(245,166,35,.07),transparent)}
+  .q-pos{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--muted);text-align:center}
+  .q-name{font-weight:600;font-size:14px}
+  .q-svc{font-size:12px;color:var(--muted);margin-top:1px}
+  .q-svc .flag{color:var(--next);font-family:'IBM Plex Mono',monospace;font-size:10.5px}
+  .q-meta{display:flex;align-items:center;gap:10px;justify-self:end}
+  .badge{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.03em;padding:3px 8px;border-radius:6px;
+    display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .badge .b-dot{width:6px;height:6px;border-radius:50%}
+  .badge.wa{color:#7ce2a6;background:rgba(37,211,102,.10);border:1px solid rgba(37,211,102,.22)}
+  .badge.wa .b-dot{background:var(--wa)}
+  .badge.qr{color:#bcb1fb;background:rgba(139,124,246,.10);border:1px solid rgba(139,124,246,.22)}
+  .badge.qr .b-dot{background:var(--qr)}
+  .badge.rec{color:#a9cdf2;background:rgba(91,155,213,.10);border:1px solid rgba(91,155,213,.22)}
+  .badge.rec .b-dot{background:var(--rec)}
+  .badge.me{color:#06231f;background:var(--live);border:1px solid transparent;font-weight:600}
+  .q-wait{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--muted);min-width:42px;text-align:right}
+  .q-empty{padding:34px 18px;color:var(--muted-2);font-size:13px;text-align:center}
+
+  .q-actions{display:flex;flex-wrap:wrap;gap:9px;padding:14px 18px 4px}
+  .abtn{font-size:12.5px;font-weight:600;border-radius:9px;padding:9px 13px;border:1px solid var(--line);
+    background:var(--panel-3);color:var(--text);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+  .abtn:hover{border-color:#3a4a5a}
+  .abtn.ghost{background:transparent;color:var(--muted)}
+  .walkform{display:none;gap:8px;padding:6px 18px 4px;flex-wrap:wrap;align-items:center}
+  .walkform.show{display:flex}
+  .walkform input,.walkform select{font-family:inherit;font-size:13px;background:#0c121a;color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .walkform input{width:150px}
+
+  .c-side{padding:14px 16px 16px;display:flex;flex-direction:column;gap:11px;background:rgba(0,0,0,.12)}
+  .c-side h3{font-size:10.5px;font-weight:600;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;font-family:'IBM Plex Mono',monospace}
+  .counter{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:var(--panel-2);transition:.2s}
+  .counter .top{display:flex;align-items:center;justify-content:space-between}
+  .counter .who{font-size:12.5px;color:var(--muted)}
+  .counter .who b{color:var(--text);font-weight:600}
+  .cstate{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.05em;padding:2px 7px;border-radius:5px}
+  .cstate.serving{color:var(--live);background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.25)}
+  .cstate.called{color:var(--next);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.25)}
+  .cstate.idle{color:var(--muted-2);background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .counter .now{font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:3px;line-height:1}
+  .counter.serving{border-color:rgba(45,212,191,.3)}
+  .counter.serving .now{color:var(--live)}
+  .counter.called{border-color:rgba(245,166,35,.3)}
+  .counter.called .now{color:var(--next)}
+  .counter.idle .now{color:var(--muted-2)}
+  .counter .sub{font-size:11px;color:var(--muted-2);margin-top:5px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .grace-bar{height:4px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
+  .grace-bar i{display:block;height:100%;background:var(--next)}
+  .cbtns{display:flex;gap:7px;margin-top:10px}
+  .cbtn{flex:1;font-size:12px;font-weight:600;border-radius:8px;padding:8px;border:1px solid var(--line);
+    background:var(--panel-3);color:var(--text);transition:.15s}
+  .cbtn:hover:not(:disabled){border-color:#3a4a5a}
+  .cbtn:disabled{opacity:.4;cursor:not-allowed}
+  .cbtn.go{background:var(--live);color:#06231f;border-color:transparent}
+  .cbtn.warn{color:#f3a0ad;border-color:rgba(239,91,110,.3)}
+
+  /* ===== phone ===== */
+  .phone-col{position:sticky;top:18px}
+  .phone{width:360px;border-radius:40px;padding:11px;background:#05060a;border:1px solid #1b2530;
+    box-shadow:var(--shadow),0 0 0 6px #0c1219;position:relative}
+  .notch{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#05060a;border-radius:0 0 16px 16px;z-index:5}
+  .screen{border-radius:31px;overflow:hidden;background:#0b141a}
+  .wa-bg{background:#ece5dd;background-image:radial-gradient(rgba(0,0,0,.025) 1px,transparent 1px);background-size:18px 18px}
+  .wa-head{background:#075e54;padding:32px 14px 11px;display:flex;align-items:center;gap:11px;color:#fff}
+  .wa-av{width:38px;height:38px;border-radius:50%;background:#0a8f7c;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .wa-meta .nm{font-weight:600;font-size:14.5px;line-height:1.2}
+  .wa-meta .st{font-size:11px;opacity:.85;display:flex;align-items:center;gap:5px}
+  .wa-meta .st::before{content:"";width:6px;height:6px;border-radius:50%;background:#7be0a0;display:inline-block}
+  .wa-tag{margin-left:auto;font-size:9px;letter-spacing:.05em;background:rgba(255,255,255,.16);padding:3px 7px;border-radius:5px;font-family:'IBM Plex Mono',monospace}
+  .thread{padding:15px 12px;display:flex;flex-direction:column;gap:8px;min-height:430px;max-height:480px;overflow-y:auto}
+  .bub{max-width:86%;padding:8px 11px 18px;border-radius:11px;font-size:13px;position:relative;color:#0b1f17;box-shadow:0 1px 1px rgba(0,0,0,.08);line-height:1.42}
+  .bub .t{position:absolute;right:9px;bottom:5px;font-size:9px;color:#7d8c84}
+  .bub.in{background:#fff;align-self:flex-start;border-top-left-radius:3px}
+  .bub.out{background:#dcf8c6;align-self:flex-end;border-top-right-radius:3px}
+  .bub.out .t{color:#5a8c5f}
+  .bub.alert{background:#fff8e6;border-left:3px solid var(--next)}
+  .bub.good{background:#e7f8ec;border-left:3px solid var(--wa)}
+  .bub b{font-weight:600}
+  .pill-pos{display:inline-block;font-family:'IBM Plex Mono',monospace;font-weight:600;background:#075e54;color:#fff;border-radius:6px;padding:1px 7px;font-size:12px}
+  .countbig{font-family:'IBM Plex Mono',monospace;font-weight:600;color:#b5760a}
+  .wabtn{margin-top:9px;width:100%;border:none;background:#075e54;color:#fff;border-radius:9px;padding:10px;font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;gap:7px;transition:.15s}
+  .wabtn:hover{filter:brightness(1.1)}
+  .wabtn.amber{background:#e0900f}
+  .waline{align-self:center;font-size:11px;color:#5b6b66}
+  .waline a{color:#075e54;font-weight:600;cursor:pointer;text-decoration:underline}
+  .wa-input{background:#f0f0f0;padding:8px 10px;display:flex;align-items:center;gap:9px}
+  .wa-input .box{flex:1;background:#fff;border-radius:18px;padding:8px 13px;color:#9aa39c;font-size:13px}
+  .wa-input .snd{width:34px;height:34px;border-radius:50%;background:#075e54;display:flex;align-items:center;justify-content:center;color:#fff}
+  .phone-cap{text-align:center;font-size:12px;color:var(--muted-2);margin-top:12px}
+  .phone-cap b{color:var(--muted)}
+
+  @media(max-width:1080px){
+    .stage{grid-template-columns:1fr}
+    .phone-col{position:static;display:flex;justify-content:center}
+  }
+  @media(max-width:720px){
+    .c-body{grid-template-columns:1fr}.c-queue{border-right:0;border-bottom:1px solid var(--line)}
+    .c-stats{grid-template-columns:repeat(2,1fr)}.q-head .legend{display:none}.phone{width:340px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Clickable Prototype  ·  <b>Hold My Spot</b>  ·  one queue, two live views</div>
+    <h1>Hold My Spot</h1>
+    <p class="lede"><b>Both sides are wired to the same queue.</b> Serve the line on the console and watch the customer's phone update — or join on the phone and ride the queue yourself.</p>
+    <div class="bar">
+      <span class="hint">▶ <b>Try:</b> tap <b>Call Next</b> on an open counter, or <b>Join</b> on the phone. Remote joins arrive <b>provisional</b> — the customer taps to confirm before they're callable.</span>
+      <span class="spacer"></span>
+      <button class="gbtn" id="autoBtn" onclick="toggleAuto()">▶ Auto-serve</button>
+      <button class="gbtn" onclick="resetAll()">↺ Reset</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <!-- CONSOLE -->
+    <div class="console">
+      <div class="c-top">
+        <div class="c-logo"><span class="dot"></span> Hold&nbsp;My&nbsp;Spot <span>Console</span></div>
+        <div class="c-loc">Kingston — Main Branch <span class="car">▾</span></div>
+        <div class="c-live"><span class="pulse"></span> Live</div>
+      </div>
+      <div class="c-stats" id="stats"></div>
+      <div class="c-body">
+        <div class="c-queue">
+          <div class="q-head">
+            <h3>Unified Queue</h3>
+            <span class="count" id="qcount">0 waiting</span>
+            <div class="legend">
+              <span><i class="lg-dot" style="background:var(--wa)"></i>WhatsApp</span>
+              <span><i class="lg-dot" style="background:var(--qr)"></i>Walk-in QR</span>
+              <span><i class="lg-dot" style="background:var(--rec)"></i>Reception</span>
+            </div>
+          </div>
+          <div id="queue"></div>
+          <div class="walkform" id="walkform">
+            <input id="wName" placeholder="Walk-in name" />
+            <select id="wSvc">
+              <option>Teller Services</option><option>Account Services</option><option>Loans &amp; Mortgage</option>
+            </select>
+            <select id="wChan">
+              <option value="rec">Reception entry</option><option value="qr">Walk-in QR</option>
+            </select>
+            <button class="abtn" onclick="addWalkin()">Add to queue</button>
+          </div>
+          <div class="q-actions">
+            <button class="abtn" onclick="toggleWalkin()"><span>＋</span> Add walk-in</button>
+            <button class="abtn ghost"><span>▢</span> Show QR poster</button>
+            <button class="abtn ghost"><span>⤢</span> Cast display</button>
+          </div>
+        </div>
+        <div class="c-side">
+          <h3>Counters</h3>
+          <div id="counters"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHONE -->
+    <div class="phone-col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen wa-bg">
+          <div class="wa-head">
+            <div class="wa-av">KM</div>
+            <div class="wa-meta"><div class="nm">Kingston Main Branch</div><div class="st">Hold My Spot · online</div></div>
+            <div class="wa-tag">via WhatsApp</div>
+          </div>
+          <div class="thread" id="thread"></div>
+          <div class="wa-input"><div class="box">Message</div><div class="snd">➤</div></div>
+        </div>
+      </div>
+      <p class="phone-cap"><b>Customer view</b> — this is “Andre,” one person in the queue above</p>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const GRACE = 300;          // grace window seconds
+const SVC_MIN = 3;          // rough minutes per person for ETA
+let auto = false, autoTimer = null;
+
+const seed = () => ({
+  servedToday: 87,
+  noShowToday: 4,
+  nextNum: 50,              // next ticket number to assign
+  joinPos: null,            // Andre's position when he joined
+  queue: [
+    {id:'s41', num:41, name:'Patrice Gordon', svc:'Teller Services',  chan:'rec', status:'serving', counter:'c1', wait:21},
+    {id:'s42', num:42, name:'Junior Bailey',  svc:'Teller Services',  chan:'qr',  status:'serving', counter:'c3', wait:16},
+    {id:'q43', num:43, name:'Tashauna Reid',  svc:'Account Services', chan:'qr',  status:'waiting', wait:18},
+    {id:'q44', num:44, name:'Marcus Brown',   svc:'Teller Services',  chan:'wa',  status:'waiting', wait:12},
+    {id:'q45', num:45, name:'Keisha Allen',   svc:'Account Services', chan:'rec', status:'waiting', wait:11},
+    {id:'q46', num:46, name:'Devon Walters',  svc:'Loans & Mortgage', chan:'wa',  status:'waiting', wait:9},
+    {id:'q47', num:47, name:'Shanice Powell', svc:'Teller Services',  chan:'qr',  status:'waiting', wait:6},
+    {id:'q48', num:48, name:'Omar Henry',     svc:'Account Services', chan:'wa',  status:'waiting', wait:4},
+  ],
+  counters: [
+    {id:'c1', agent:'Nordia'}, {id:'c2', agent:'Rohan'},
+    {id:'c3', agent:'Simone'}, {id:'c4', agent:'(open)'},
+  ],
+  meId: null,               // Andre's entry id once he joins
+});
+let S = seed();
+
+/* ---------- helpers ---------- */
+const get   = id => S.queue.find(e => e.id === id);
+const me    = () => S.meId ? get(S.meId) : null;
+const inLine = () => S.queue.filter(e => e.status==='provisional' || e.status==='waiting');
+const eligible = () => S.queue.find(e => e.status==='waiting');
+const counterEntry = c => S.queue.find(e => e.counter===c.id && (e.status==='called'||e.status==='serving'));
+const posOf = e => { const l=inLine(); return l.indexOf(e)+1; };
+const eta = pos => Math.max(SVC_MIN, pos*SVC_MIN);
+const chanLabel = c => c==='wa'?'WhatsApp':c==='qr'?'Walk-in QR':'Reception';
+
+/* ---------- console actions ---------- */
+function callNext(cid){
+  const c = S.counters.find(x=>x.id===cid);
+  if(counterEntry(c)) return;            // counter busy
+  const e = eligible();
+  if(!e) return;
+  e.status='called'; e.counter=cid; e.grace=GRACE;
+  render();
+}
+function staffCheckIn(cid){               // for walk-ins with no phone, or any called entry
+  const e = counterEntry(S.counters.find(x=>x.id===cid));
+  if(e && e.status==='called'){ e.status='serving'; delete e.grace; render(); }
+}
+function complete(cid){
+  const e = counterEntry(S.counters.find(x=>x.id===cid));
+  if(e && e.status==='serving'){ e.status='served'; delete e.counter; S.servedToday++; render(); }
+}
+function noShow(cid){
+  const e = counterEntry(S.counters.find(x=>x.id===cid));
+  if(e){ e.status='noshow'; delete e.counter; delete e.grace; S.noShowToday++; render(); }
+}
+function toggleWalkin(){ document.getElementById('walkform').classList.toggle('show'); }
+function addWalkin(){
+  const name=(document.getElementById('wName').value||'Walk-in customer').trim();
+  const svc=document.getElementById('wSvc').value;
+  const chan=document.getElementById('wChan').value;
+  S.queue.push({id:'w'+Date.now(), num:S.nextNum++, name, svc, chan, status:'waiting', wait:0}); // on-site = confirmed
+  document.getElementById('wName').value='';
+  document.getElementById('walkform').classList.remove('show');
+  render();
+}
+
+/* ---------- consumer (Andre) actions ---------- */
+function joinQueue(){
+  if(me()) return;
+  const e={id:'me', num:S.nextNum++, name:'Andre Campbell', svc:'Account Services', chan:'wa', status:'provisional', wait:0, isMe:true};
+  S.queue.push(e); S.meId='me'; S.joinPos=posOf(e);
+  render();
+}
+function confirmMe(){ const e=me(); if(e&&e.status==='provisional'){ e.status='waiting'; render(); } }
+function checkInMe(){ const e=me(); if(e&&e.status==='called'){ e.status='serving'; delete e.grace; render(); } }
+function leaveMe(){ const e=me(); if(e){ e.status='left'; delete e.counter; render(); } }
+function rejoinMe(){ S.meId=null; const i=S.queue.findIndex(x=>x.id==='me'); if(i>-1)S.queue.splice(i,1); joinQueue(); }
+
+/* ---------- auto-serve ---------- */
+function toggleAuto(){
+  auto=!auto;
+  document.getElementById('autoBtn').classList.toggle('on',auto);
+  document.getElementById('autoBtn').textContent = auto ? '❚❚ Auto-serve on' : '▶ Auto-serve';
+  if(auto){ autoTimer=setInterval(autoStep, 2200); } else { clearInterval(autoTimer); }
+}
+function autoStep(){
+  // 1) check in any called NON-me entry (they "arrive")
+  for(const c of S.counters){ const e=counterEntry(c);
+    if(e && e.status==='called' && !e.isMe && e.grace < GRACE-2){ e.status='serving'; delete e.grace; render(); return; } }
+  // 2) complete a serving entry
+  for(const c of S.counters){ const e=counterEntry(c);
+    if(e && e.status==='serving'){ e.status='served'; delete e.counter; S.servedToday++; render(); return; } }
+  // 3) call next on an idle counter
+  for(const c of S.counters){ if(!counterEntry(c) && eligible()){ callNext(c.id); return; } }
+}
+
+/* ---------- grace countdown ---------- */
+setInterval(()=>{
+  let dirty=false;
+  for(const e of S.queue){
+    if(e.status==='called' && typeof e.grace==='number'){
+      e.grace--; dirty=true;
+      if(e.grace<=0){ e.status='noshow'; delete e.counter; delete e.grace; S.noShowToday++; }
+    }
+  }
+  if(dirty) render();
+},1000);
+
+/* ---------- render ---------- */
+function fmt(s){ const m=Math.floor(s/60), x=s%60; return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
+
+function renderStats(){
+  const inQ = S.queue.filter(e=>['provisional','waiting','called'].includes(e.status)).length;
+  const waits = inLine().map(e=>e.wait||0);
+  const avg = waits.length ? Math.round(waits.reduce((a,b)=>a+b,0)/waits.length) : 0;
+  const total = S.servedToday + S.noShowToday;
+  const nsr = total ? Math.round(S.noShowToday/total*100) : 0;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="k">In Queue Now</div><div class="v">${inQ}</div></div>
+    <div class="stat"><div class="k">Avg Wait</div><div class="v">${avg}<small>min</small></div></div>
+    <div class="stat"><div class="k">Served Today</div><div class="v">${S.servedToday}</div></div>
+    <div class="stat"><div class="k">No-Show Rate</div><div class="v good">${nsr}<small>%</small></div></div>`;
+}
+
+function renderQueue(){
+  const list = inLine();
+  document.getElementById('qcount').textContent = list.length + ' waiting';
+  const el = document.getElementById('queue');
+  if(!list.length){ el.innerHTML = `<div class="q-empty">Queue is clear — every waiting customer has been called.</div>`; return; }
+  el.innerHTML = list.map((e,i)=>{
+    const prov = e.status==='provisional';
+    const meTag = e.isMe ? `<span class="badge me">YOU · Andre</span>` : `<span class="badge ${e.chan}"><span class="b-dot"></span>${chanLabel(e.chan)}</span>`;
+    const flag = prov ? ` · <span class="flag">⏳ provisional — awaiting customer confirm</span>` : '';
+    return `<div class="q-row ${prov?'prov':''}">
+      <div class="q-pos">${i+1}</div>
+      <div><div class="q-name">${e.name}</div><div class="q-svc">${e.svc}${flag}</div></div>
+      <div class="q-meta">${meTag}<span class="q-wait">${e.wait||0}m</span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderCounters(){
+  document.getElementById('counters').innerHTML = S.counters.map(c=>{
+    const e = counterEntry(c);
+    if(!e){
+      const can = !!eligible();
+      return `<div class="counter idle">
+        <div class="top"><span class="who"><b>${c.id.toUpperCase()}</b> · ${c.agent}</span><span class="cstate idle">IDLE</span></div>
+        <div class="now">—</div>
+        <div class="sub"><span>No active service</span></div>
+        <div class="cbtns"><button class="cbtn go" onclick="callNext('${c.id}')" ${can?'':'disabled'}>Call Next →</button></div>
+      </div>`;
+    }
+    if(e.status==='called'){
+      return `<div class="counter called">
+        <div class="top"><span class="who"><b>${c.id.toUpperCase()}</b> · ${c.agent}</span><span class="cstate called">CALLED</span></div>
+        <div class="now">${e.num}</div>
+        <div class="sub"><span>${e.name}</span><span class="mono">${fmt(e.grace)}</span></div>
+        <div class="grace-bar"><i style="width:${e.grace/GRACE*100}%"></i></div>
+        <div class="cbtns">
+          <button class="cbtn go" onclick="staffCheckIn('${c.id}')">Check in</button>
+          <button class="cbtn warn" onclick="noShow('${c.id}')">No-show</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="counter serving">
+      <div class="top"><span class="who"><b>${c.id.toUpperCase()}</b> · ${c.agent}</span><span class="cstate serving">SERVING</span></div>
+      <div class="now">${e.num}</div>
+      <div class="sub"><span>${e.name}</span><span>${e.svc}</span></div>
+      <div class="cbtns"><button class="cbtn go" onclick="complete('${c.id}')">Complete ✓</button></div>
+    </div>`;
+  }).join('');
+}
+
+function renderPhone(){
+  const t = document.getElementById('thread');
+  const e = me();
+  let h = '';
+  if(!e){
+    h = `<div class="bub in">👋 Welcome to <b>Kingston Main Branch</b>. Need <b>Account Services</b>? Join the queue from here — no need to stand in line.
+      <button class="wabtn" onclick="joinQueue()">＋ Join the queue</button>
+      <span class="t">now</span></div>
+      <div class="waline">scan the in-branch QR or message us to join</div>`;
+    t.innerHTML = h; return;
+  }
+  h += `<div class="bub out">join<span class="t">10:41</span></div>`;
+  h += `<div class="bub in">✅ You're in line for <b>${e.svc}</b>.<br>Your spot: <span class="pill-pos">#${S.joinPos}</span> · est. <b>~${eta(S.joinPos)} min</b>.<br>We'll message you when you're close.<span class="t">10:41</span></div>`;
+
+  const pos = posOf(e);
+  if(e.status==='provisional'){
+    h += `<div class="bub in alert">⏳ You're moving up — now <span class="pill-pos">#${pos}</span>. To keep your spot, confirm you're still coming.
+      <button class="wabtn amber" onclick="confirmMe()">✓ Yes, I'm coming</button>
+      <span class="t">now</span></div>
+      <div class="waline">until you confirm, others may pass — your spot won't block the line</div>`;
+  } else if(e.status==='waiting'){
+    h += `<div class="bub in good">✓ Confirmed. You're <span class="pill-pos">#${pos}</span> · est. <b>~${eta(pos)} min</b>. Hang tight — we'll call you.<span class="t">now</span></div>
+      <div class="waline"><a onclick="leaveMe()">Leave the queue</a></div>`;
+  } else if(e.status==='called'){
+    h += `<div class="bub in alert">🔔 <b>You're next!</b> Please head to the counter now.<br><br>We're holding your spot for <span class="countbig">${fmt(e.grace)}</span>.
+      <button class="wabtn" onclick="checkInMe()">✓ I'm here — check me in</button>
+      <span class="t">now</span></div>`;
+  } else if(e.status==='serving'){
+    const c = S.counters.find(x=>x.id===e.counter);
+    h += `<div class="bub out">✓ checked in<span class="t">now</span></div>
+      <div class="bub in good">✅ Checked in. Please go to <b>${c?c.id.toUpperCase():'the counter'}</b>${c?` · ${c.agent}`:''}. Thanks for waiting, Andre!<span class="t">now</span></div>`;
+  } else if(e.status==='noshow'){
+    h += `<div class="bub in alert">⌛ Your held spot lapsed and was released to the next person. Want to rejoin?
+      <button class="wabtn amber" onclick="rejoinMe()">↺ Rejoin the queue</button><span class="t">now</span></div>`;
+  } else if(e.status==='left'){
+    h += `<div class="bub in">You left the queue. Come back anytime.
+      <button class="wabtn" onclick="rejoinMe()">＋ Join again</button><span class="t">now</span></div>`;
+  }
+  t.innerHTML = h;
+  t.scrollTop = t.scrollHeight;
+}
+
+function render(){ renderStats(); renderQueue(); renderCounters(); renderPhone(); }
+function resetAll(){
+  if(auto) toggleAuto();
+  S = seed(); render();
+}
+render();
+</script>
+</body>
+</html>

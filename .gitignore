@@ -1,0 +1,27 @@
+# ─── Harness / agent workspace ───────────────────────────────
+.workflow/
+
+# ─── Dependencies ────────────────────────────────────────────
+node_modules/
+
+# ─── Build output ────────────────────────────────────────────
+build/
+dist/
+out/
+
+# ─── Environment & secrets ───────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ─── Logs ────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── OS / editor ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

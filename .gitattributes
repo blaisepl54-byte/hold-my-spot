@@ -1,0 +1,4 @@
+# Grounding documents are hash-verified against docs/GROUNDING_MANIFEST.md.
+# Line-ending conversion on checkout would break every SHA-256, so these
+# paths are exempt from text normalization.
+docs/** -text

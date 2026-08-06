@@ -3,7 +3,7 @@ Consumes: kingb-harness (via /plugin marketplace add). Global King B doctrine ap
 
 Realm: holdmyspot
 
-> **Registration status (2026-08-04, revised):** the `holdmyspot` realm is **half registered**.
+> **Registration status (observed 2026-08-04, evidence `HMS-P0-MAPPING-REPORT.md` b01ef89e):** the `holdmyspot` realm is **half registered**.
 > The harness valid-realm list is sealed: merged at `96fd9649`, released in kingb-harness 0.7.0,
 > active at user scope, with `holdmyspot` present in both shipped lists. The Igris realm registry
 > is not: zero occurrences in the live `realm-config.json`, established by negative proof at
@@ -11,12 +11,20 @@ Realm: holdmyspot
 > separately recorded gbrain supervisor state is not established, because determining it requires
 > invoking the skill, which writes. Until the Igris partition exists, no memory carries between
 > CC sessions and no phase spec may assume it does.
+> Refresh: `HMS-P0-MAPPING-REPORT.md` §8A.7 records the commands that re-derive this.
 
 ## Project facts
-- Stack / deploy / hosts: **none chosen yet.** No code, no build, no deploy target, no hosts.
-- Product brief: **not supplied.** Do not invent product copy, positioning, or features — write
-  the brief into `README.md` only from King B's own words.
-- Remote: `blaisepl54-byte/hold-my-spot`.
+- Stack / deploy / hosts: **none chosen yet** as of `0241b82`. No code, no build, no deploy target,
+  no hosts. This line rots when Phase 1 ratifies a stack. Update it in the same commit that does.
+- Product brief: **supplied.** `docs/hold-my-spot-business-plan-handoff.md`, landed at `0ea570e`,
+  ruled the brief of record in HMS-RR-001. Six further grounding documents sit alongside it in
+  `docs/`, each hashed in `docs/GROUNDING_MANIFEST.md`. Do not invent product copy, positioning,
+  or features. Read the brief. Verify a document against the manifest before citing it as an
+  original source: one of the seven is a transcription and is flagged there as such.
+- Remote: `blaisepl54-byte/hold-my-spot`. **PRIVATE, and must stay private.** Real contact data is
+  permanent in pushed history from `0ea570e`, so this repo cannot be made public without a sealed
+  one-time history-rewrite exception from King B, which collides with forward-only and has not been
+  granted. Verified private at `a8ae6ed`.
 
 ## Gating, per-project lightened set (THE authoritative location)
 - **Self-merge/lightened set: NONE ratified.** No charter is in force for this repo. The global

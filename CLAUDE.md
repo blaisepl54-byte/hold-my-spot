@@ -3,10 +3,14 @@ Consumes: kingb-harness (via /plugin marketplace add). Global King B doctrine ap
 
 Realm: holdmyspot
 
-> **Registration status (2026-08-04):** the `holdmyspot` realm is **staged, not sealed**. It is not
-> yet in the harness valid-realm list (kingb-harness PR, staged) nor in the Igris realm registry
-> (commander-igris PR, staged). Until both are sealed, `realm-memory-sync` from this repo will
-> correctly refuse to write, and that refusal is correct behavior — not a defect.
+> **Registration status (2026-08-04, revised):** the `holdmyspot` realm is **half registered**.
+> The harness valid-realm list is sealed: merged at `96fd9649`, released in kingb-harness 0.7.0,
+> active at user scope, with `holdmyspot` present in both shipped lists. The Igris realm registry
+> is not: zero occurrences in the live `realm-config.json`, established by negative proof at
+> Phase 0. Whether `realm-memory-sync` writes, refuses on the Igris half, or refuses on the
+> separately recorded gbrain supervisor state is not established, because determining it requires
+> invoking the skill, which writes. Until the Igris partition exists, no memory carries between
+> CC sessions and no phase spec may assume it does.
 
 ## Project facts
 - Stack / deploy / hosts: **none chosen yet.** No code, no build, no deploy target, no hosts.

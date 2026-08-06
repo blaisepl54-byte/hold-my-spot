@@ -27,16 +27,28 @@ Realm: holdmyspot
   granted. Verified private at `a8ae6ed`.
 
 ## Gating, per-project lightened set (THE authoritative location)
-- **Self-merge/lightened set: NONE ratified.** No charter is in force for this repo. The global
+- **Self-merge/lightened set: NONE ratified** as of `4d7aff4`. No charter is in force for this repo. The global
   default therefore applies in full: never auto-commit, auto-push, or auto-merge. Stage the change,
   propose the message, wait for King B's explicit go. A lightened set only exists once King B
   ratifies one here, in this file.
 - Always escalate: prod migration · deploy · auth/secrets/env/flags/DNS · live money rails ·
   destructive ops · public-surface changes · out-of-charter scope.
   Gating is **per-surface**: one authorization never cascades to another surface.
-- Value invariants: **none defined yet**. No money, auth, or real-value path exists in this repo.
+- Value invariants: **none defined yet** as of `4d7aff4`. No money, auth, or real-value path exists
+  in this repo. This line rots when a real-value path lands; update it in the same commit.
   Define them here before the first such path is written, not after.
 
 ## Project-specific agents/skills (override harness by-name)
-- None. The harness surface (`kingb-harness:verifier`, `realm-memory-sync`, `humanizer`, the
-  safety hooks) applies unmodified.
+- None as of `4d7aff4`. No `.claude/` overrides exist, so the harness surface
+  (`kingb-harness:verifier`, `realm-memory-sync`, `humanizer`, the safety hooks) applies unmodified.
+- **Except that `kingb-harness:verifier` does not bind.** Finding P0-F10 established that a
+  namespaced dispatch to that name silently falls through to another agent, proven behaviorally on
+  differential tool grants. Do not dispatch to it, and never record it as a reviewer.
+- Verifier rounds run as a **fresh CC session in clean context** acting as reviewer, until F10 is
+  fixed in the kingb-harness realm.
+- A reviewer identity is written into a closing line only where positive evidence establishes that
+  the named agent served the call (A4.2). `UNRESOLVED` is permitted and honest. A requested name is
+  not evidence of the agent that answered.
+- **F11:** the shipped kingb-harness 0.7.0 verifier declares `model: sonnet` against a ratified Opus
+  floor. Any dispatch that does not explicitly raise the tier gets Sonnet. F11 is fixed before or
+  with F10, never after.

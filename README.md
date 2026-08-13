@@ -21,8 +21,8 @@
   modules, a read pool, a write pool, and a health route.
 - `db/`, the migration runner and `001_schema_migrations.sql`, the migration ledger table only.
 - **No queue logic, no agents, and no product route exist.** The markers are enforcement surfaces
-  for the boundary test, not implementations. 40 files tracked, count derived by `git ls-files`
-  at the commit carrying this line.
+  for the boundary test, not implementations. 27 files tracked, derived by
+  `git ls-tree -r HEAD --name-only | wc -l`, which counts the commit rather than the index.
 - **The architecture is not sealed.** `HMS-KS-002` v4 was gated NOT SAFE TO SEAL and the code here
   was written against it. See `CLAUDE.md` under Project facts.
 

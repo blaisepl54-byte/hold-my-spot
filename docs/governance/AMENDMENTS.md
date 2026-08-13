@@ -1,4 +1,4 @@
-# HMS Amendments, A1 through A8
+# HMS Amendments, A1 through A13
 
 **Realm:** holdmyspot
 **Purpose:** the repo-resident record of every ratified amendment governing this realm.
@@ -8,26 +8,60 @@
 
 ---
 
-## Provenance and fidelity, read this first
+## Provenance and fidelity, VERIFIED 2026-08-11
 
 A8 exists because rules that live only in the documents citing them are unverifiable. This file is
-the fix. It is also, for six of the eight amendments, subject to the same defect it closes, and that
-is stated here rather than discovered later.
+the fix. The first issue of it was itself unverified for six of eight amendments, and that gap is
+now closed: King B relayed the sealed originals as files and every amendment below has been diffed
+against its source.
 
-| Source | Exists as a file? | Pin | Fidelity of the text below |
-|---|---|---|---|
-| `HMS-RR-009_Gate_Rulings_A7_A8.md` | **yes** | `sha256:3cd5ff7c908a90cbde6c0ef37375e6c3c0338648b6035e27710ed9d3f4d96dca` | **Checkable.** A7 and A8 transcribed from a pinned file. |
-| A1, A2, A3, A4, A5, A6 source documents | **no** | none | **UNVERIFIED.** Transcribed by CC from text pasted into the session. No original file exists on this machine to diff against. |
+**Sources, pinned per A7:**
 
-So: A7 and A8 can be checked against a hashed artifact. **A1 through A6 cannot.** They are recorded
-here in good faith and to the best available fidelity, and the moment King B supplies the sealed
-originals as files, this document should be diffed against them and reissued.
+| Source document | Bytes | Pin |
+|---|---|---|
+| `HMS-KS-001-A1_Amendment_and_P0_Disposition.md` | 13,107 | `sha256:e9104f385f441565efff519d5af4f88a70d947d76e35378aaf2f8efe8ef1204b` |
+| `HMS-KS-001-A2_Hash_Portability_and_DataRoom.md` | 7,630 | `sha256:b8271fb2e2b32826b938b4906c9fcc877e4aa876c6f12aab673bcf3d53861942` |
+| `HMS-RR-003_Closure_Correction_and_A3.md` | 9,820 | `sha256:aa5b596d46e48e7887be73e1fb309481cd8b60fe044e56eb5b179cc939de39e2` |
+| `HMS-RR-004_CLAUDEmd_Correction_Harness_Findings_A4.md` | 11,775 | `sha256:d28f8ed6a22c880ebbf7cf8acb354ae38d7089c5a1d07a451631791fc816e4ac` |
+| `HMS-RR-005_Verifier_Closure_and_A5.md` | 8,236 | `sha256:db20b77f868361c40f0f63cf255d7972bb671dde7e6c4026705fb4ac77431ac2` |
+| `HMS-RR-007_CLAUDEmd_State_Claim_Corrections.md` | 8,559 | `sha256:7639311aa2938a694f3ae808824319b55c346ccaecce8b38c371e3939a4c78b0` |
+| `HMS-RR-008_D5_README_Corrections_A6.md` | 11,333 | `sha256:f52736cc12940b4163083c13ee94206daa84e38a9664bb2d51c5959ec7667b40` |
+| `HMS-RR-009_Gate_Rulings_A7_A8.md` | 13,060 | `sha256:3cd5ff7c908a90cbde6c0ef37375e6c3c0338648b6035e27710ed9d3f4d96dca` |
 
-This is the same class as the transcription caveat on
-`docs/HoldMySpot_WhatsApp_Integration_Path.md`, and it is the third time it has bitten this realm.
-Recording it is not a reason to withhold the file. An unverifiable record of the rules is worth more
-than no record, because it can at least be checked *against* once originals arrive; but it must not
-be mistaken for a verified one.
+Delivered inside `HMS.zip`, `sha256:27f148b525c962b121b1a3f14b1a332534ca3b3dd4a727f4adcc67b627c756e2`.
+**No expected hashes were supplied with the relay**, so these are the hashes of what arrived, not a
+verification against values stated in advance. One independent cross-check succeeded: RR-004's
+`sha256:d28f8ed6a22c880e…` matches the pin RR-005 recorded for it at authoring time, which is
+evidence the relayed file is the document RR-005 referred to.
+
+**Per-amendment diff result:**
+
+| Amendment | Result | Note |
+|---|---|---|
+| A1.1 | **EXACT** | |
+| A1.2 | **EXACT** | |
+| A2.1 | **EXACT** | Substance and the fix block verbatim. This entry additionally carries RR-009's corrected justification, marked in place as a later amendment rather than as A2.1 text. |
+| A3.1 | **EXACT** | |
+| A3.2 | **EXACT** | |
+| A3.3 | **EXACT** | |
+| A3.4 | **EXACT** | |
+| A4.1 | **EXACT** | Text verbatim. The status table originally labelled it "execution and review axes"; the source heading is "three axes". Label corrected. |
+| A4.2 | **EXACT** | |
+| A4.3 | **EXACT** | |
+| A5.1 | **DRIFT, corrected** | The first issue omitted the source's "Applied to Claude's own documents, unprompted" paragraph, which stamps the RR-004 seal card as a snapshot. Restored below. The two corollaries in this entry are **later additions**, not sealed A5.1 text, and are now labelled as such. |
+| A5.2 | **EXACT** | |
+| A5.3 | **EXACT** | |
+| A6.1 | **EXACT text, PROVENANCE DRIFT corrected** | The first issue attributed A6.1 to RR-006 Part A. It is **RR-008 Part A**. RR-006 carries no amendment and was not relayed. |
+| A6.2 | **DRIFT, corrected** | The first issue dropped two qualifiers from the phase-1 scope sentence: acceptance criteria *"including connection-proven for Postgres and docker"*, and the line-ending policy *"deferred from seal card item 27"*. Restored below. **The docker qualifier is load-bearing, see the conflict note under A6.2.** |
+| A7 | **EXACT** | Transcribed from the pinned RR-009 file in the first issue. |
+| A8 | **EXACT** | Transcribed from the pinned RR-009 file in the first issue. |
+
+**ABSENT:** `HMS-RR-006` was not relayed. Nothing depends on it: A6.1 lives in RR-008, and RR-006's
+content (Phase 0 closure, the dash sweep, the Rung 2 validation kit) carries no amendment.
+`HMS-KS-001`, `HMS-RR-001` and `HMS-RR-002` were likewise not relayed and carry no amendments.
+
+Fourteen of seventeen entries were EXACT on first transcription. Three drifted, all by omission
+rather than invention, and all are corrected in this issue.
 
 **Ratification dates** below are the dates the sealing order reached CC, evidenced by the order that
 cited the amendment as its BASIS. They are not necessarily King B's internal seal dates, and no
@@ -46,16 +80,21 @@ attempt is made to infer those.
 | A3.2 | Revision voids a ruling as to specifics | 2026-08-06 | In force |
 | A3.3 | Locations cited with the hash counted against | 2026-08-06 | In force |
 | A3.4 | Two-axis closing line | 2026-08-06 | **Withdrawn** by A4 |
-| A4.1 | Closing line, execution and review axes | 2026-08-06 | In force |
+| A4.1 | Closing line, three axes | 2026-08-06 | In force |
 | A4.2 | Identity is evidenced, never assumed | 2026-08-06 | In force |
 | A4.3 | Findings state reported separately from verdict | 2026-08-06 | In force |
 | A5.1 | No live currency inside a static artifact | 2026-08-06 | In force |
 | A5.2 | Closing line carries the reviewed hash | 2026-08-06 | In force |
 | A5.3 | Executable text travels in the CC block | 2026-08-06 | In force |
-| A6.1 | Post-check conflict resolution | 2026-08-06 | In force |
-| A6.2 | Corrected phase map | 2026-08-06 | In force |
+| A6.1 | Post-check conflict resolution (source: RR-008 Part A) | 2026-08-06 | In force |
+| A6.2 | Corrected phase map (source: RR-008 Part E) | 2026-08-06 | In force, **amended by A9** (docker struck) |
 | A7 | Hash pins are typed | 2026-08-11 | In force |
 | A8 | Governance text is a repo artifact | 2026-08-11 | In force |
+| A9 | Docker struck from Phase 1's required criteria | 2026-08-11 | In force |
+| A10 | Gated acts sit in the post-gate segment | 2026-08-11 | In force |
+| A11 | Pins round-trip before handoff | 2026-08-11 | In force |
+| A12 | Values come from the primary artifact | 2026-08-11 | In force |
+| A13 | Relays state filename and pin | 2026-08-11 | In force |
 
 Standing rules that are not numbered amendments are recorded at the end.
 
@@ -198,6 +237,16 @@ observed at, plus the commands to refresh it. A static document may not assert l
 
 A snapshot honestly labelled is durable. A live claim frozen in a file is a defect on a timer.
 
+**Applied to Claude's own documents, unprompted.** The consolidated seal card in RR-004 Part D
+asserts current open and closed status with no snapshot stamp. It is the same defect in the same
+week. It is hereby stamped: that card is a snapshot as of 2026-08-04 at repo `git:e9b7188`, and it
+is reissued rather than read as live whenever status is in question. The grounding manifest is
+already safe on this axis because it pins hashes rather than states.
+
+*The two corollaries below are NOT sealed A5.1 text.* They were ruled in later documents (RR-007
+Part A and the RR-008 disposition) and are recorded here so they are not orphaned. Flagged rather
+than merged, per the A5.1 diff result.
+
 **Corollary, added after three instances.** A state claim that also carries an *instruction* is a
 worse category than an inert one: it does not merely rot, it reproduces, because a session follows a
 correct instruction attached to a wrong premise. Such lines are high priority for pinning regardless
@@ -252,10 +301,24 @@ HMS-KS-001 §5 defined Phase 1 as a "spec-adversarial review gate on the Phase 1
 circular: it defines a phase as the review of a document the phase does not produce, and confuses a
 gate with a phase. **A gate runs on an artifact. A phase produces one.**
 
-- **Phase 1, Stack and Architecture.** Produces a ratified spec covering the stack and package
-  manager, repo layout and module boundaries, the queue domain model carried from the prototype, the
-  acceptance criteria every later phase is measured against, the repo-wide line-ending policy, and
-  the explicit statement that no memory carries between CC sessions until the Igris partition exists.
+- **Phase 1, Stack and Architecture.** Produces a ratified spec covering: the stack and package
+  manager, the repo layout and module boundaries, the queue domain model carried over from the
+  prototype, the acceptance criteria every later phase is measured against **including
+  connection-proven for Postgres and docker**, the repo-wide line-ending policy **deferred from seal
+  card item 27**, and the explicit statement that no memory carries between CC sessions until the
+  Igris partition exists.
+
+> **CONFLICT, RESOLVED 2026-08-11 by A9.** A6.2 as sealed required Phase 1's acceptance criteria to
+> include **connection-proven for docker**, while HMS-KS-002 R6 ruled docker out of scope and closed
+> the Phase 0 abstention "by disuse". Those could not both hold. **A9 strikes the docker clause**, so
+> the docker qualifier above is superseded and connection-proven applies to Postgres alone. The
+> qualifier is left in the A6.2 text rather than deleted, because rulings sealed before 2026-08-11
+> were written against it.
+>
+> Recorded for the method rather than the outcome: this conflict surfaced only because the omitted
+> qualifier was restored during the fidelity diff against relayed originals. Reading the
+> transcription however carefully would not have found it, which is the argument for A8 and for
+> diffing against sources rather than against memory.
 - **The spec-adversarial gate is a named gate, not a phase.** It runs on every build-phase spec
   before that phase opens, starting with Phase 1's own. Findings logged or the round did not happen.
   Under A4.2 and P0-F10 it runs as a fresh CC session in clean context.
@@ -283,12 +346,49 @@ Every ratified amendment lands in the repo as a file before any artifact may cit
 it. A rule that exists only in the documents citing it is unverifiable, and an unverifiable rule is
 decoration.
 
-**Deliverable:** this file, `docs/governance/AMENDMENTS.md`, carrying A1 through A8 in full with
-ratification dates, landed as a forward-only commit. Every future amendment lands here in the same
-commit that seals it.
+**Deliverable:** this file, `docs/governance/AMENDMENTS.md`, carrying every ratified amendment in
+full with its ratification date, landed as a forward-only commit. Every future amendment lands here
+in the same commit that seals it. *(Originally written as "A1 through A8", which became a stale
+state claim in a title the moment A9 through A13 landed. The count is now stated by the status table
+rather than duplicated in prose.)*
 
 Until this file exists, no artifact may claim compliance with an amendment. It may cite one as
 proposed.
+
+---
+
+## A9, docker struck from Phase 1's required criteria
+
+A6.2 is amended to strike docker from Phase 1's required acceptance criteria. Connection-proven
+applies to Postgres. Docker is out of scope per KS-002 R6, closed by disuse rather than by proof. If
+a later phase adopts docker, connection-proven applies to it then, in that phase's spec.
+
+*Resolves the A6.2 / R6 conflict recorded under A6.2 below, which was surfaced by the fidelity diff
+of 2026-08-11 and reported unresolved until this seal.*
+
+## A10, gated acts sit in the post-gate segment
+
+Any acceptance criterion whose evidence requires a commit or a push sits in the post-gate segment of
+its phase. A criterion the implementer cannot satisfy without performing a gated act is a permission
+inversion.
+
+## A11, pins round-trip before handoff
+
+Every pin in a governance record round-trips before handoff: the value as written is re-extracted and
+compared against the source hash. This runs with the dash audit, as a post-write check rather than an
+authoring instruction. A rule aimed at an author's intent cannot close a defect introduced by a
+renderer.
+
+## A12, values come from the primary artifact
+
+Any value entering a governance record, meaning a count, a date, a status or a location, is taken
+from the primary artifact or is marked as relayed and unverified. A number quoted from a summary
+carries the summary's scope, not the artifact's.
+
+## A13, relays state filename and pin
+
+Every relay states the filename and the pin of the file being sent, and the receiving party verifies
+the pin before acting. A file whose pin does not match what was announced is treated as not received.
 
 ---
 

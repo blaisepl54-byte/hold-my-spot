@@ -1,13 +1,13 @@
 # Hold My Spot
 
-> **Status: scaffold plus grounding, as of `4d7aff4`.** This repository was created on 2026-08-04 as
+> **Status: Phase 1a scaffold plus grounding, as of 2026-08-13.** This repository was created on 2026-08-04 as
 > a realm scaffold. The product brief has since been supplied and is tracked at
 > `docs/hold-my-spot-business-plan-handoff.md`, ruled the brief of record in HMS-RR-001. This README
 > still carries no product description, positioning, or feature copy, because that copy belongs in
 > the brief rather than duplicated here, where the duplicate would drift out of step with it.
 > Read `docs/` for the product.
 
-## What exists as of `4d7aff4`
+## What exists as of 2026-08-13
 
 - `README.md`, this file.
 - `CLAUDE.md`, project instructions. Carries the `Realm:` tag, the gating contract, and the
@@ -16,7 +16,15 @@
 - `.gitattributes`, pinning `docs/**` line endings so the grounding hashes verify on any clone.
 - `docs/`, the grounding set: seven documents plus `GROUNDING_MANIFEST.md`, each hashed there.
 - `HMS-P0-MAPPING-REPORT.md`, the Phase 0 read-only mapping, reviewed and remediated.
-- No stack has been chosen and no product code has been written. 13 files tracked at `4d7aff4`.
+- `package.json`, `pnpm-lock.yaml`, `.nvmrc`, `tsconfig.json`, the pinned toolchain.
+- `src/`, the Phase 1a skeleton: four boundary markers that throw when called, plus three live
+  modules, a read pool, a write pool, and a health route.
+- `db/`, the migration runner and `001_schema_migrations.sql`, the migration ledger table only.
+- **No queue logic, no agents, and no product route exist.** The markers are enforcement surfaces
+  for the boundary test, not implementations. 40 files tracked, count derived by `git ls-files`
+  at the commit carrying this line.
+- **The architecture is not sealed.** `HMS-KS-002` v4 was gated NOT SAFE TO SEAL and the code here
+  was written against it. See `CLAUDE.md` under Project facts.
 
 ## Harness
 

@@ -85,6 +85,24 @@
 
 -- ----------------------------------------------------------------------------
 -- Roles. Idempotent: CREATE ROLE has no IF NOT EXISTS, so each is guarded.
+--
+-- DEFECT FIXED 2026-08-15, on this file's FIRST EVER EXECUTION.
+-- Each role was previously created inside a single DO $$ ... $$ block carrying
+-- :'HMS_*_PASSWORD'. **psql does not substitute its variables inside a
+-- dollar-quoted string.** The literal text :'HMS_DDL_PASSWORD' therefore
+-- reached the server, which failed with:
+--     ERROR: syntax error at or near ":"
+-- Nothing was created; ON_ERROR_STOP halted on the first statement.
+--
+-- The fix splits each role into two statements, and the split is LOAD-BEARING.
+-- Do not merge them back:
+--   1. CREATE inside the DO block, which needs the guard but NO variable.
+--   2. ALTER outside it, as a plain statement, where psql DOES substitute.
+--
+-- A useful consequence: ALTER runs unconditionally, so re-running this file
+-- resets each password to the value currently in .env. .env is authoritative,
+-- and a half-finished earlier run cannot leave a role holding a password that
+-- no longer matches.
 -- ----------------------------------------------------------------------------
 
 -- hms_ddl. The ONLY role holding DDL. Used by db/migrate.ts and nothing else.
@@ -96,11 +114,13 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hms_ddl') THEN
-    CREATE ROLE hms_ddl LOGIN PASSWORD :'HMS_DDL_PASSWORD'
-      NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
+    CREATE ROLE hms_ddl NOLOGIN;
   END IF;
 END
 $$;
+
+ALTER ROLE hms_ddl LOGIN PASSWORD :'HMS_DDL_PASSWORD'
+  NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
 
 -- hms_rw. SELECT, INSERT, UPDATE, DELETE, and NO DDL.
 -- [V4-R5] v4 line 79, role table: hms_rw | SELECT, INSERT, UPDATE, DELETE.
@@ -111,11 +131,13 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hms_rw') THEN
-    CREATE ROLE hms_rw LOGIN PASSWORD :'HMS_RW_PASSWORD'
-      NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
+    CREATE ROLE hms_rw NOLOGIN;
   END IF;
 END
 $$;
+
+ALTER ROLE hms_rw LOGIN PASSWORD :'HMS_RW_PASSWORD'
+  NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
 
 -- hms_ro. SELECT only, so the read path is structurally incapable of writing
 -- rather than merely discouraged.
@@ -123,11 +145,13 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hms_ro') THEN
-    CREATE ROLE hms_ro LOGIN PASSWORD :'HMS_RO_PASSWORD'
-      NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
+    CREATE ROLE hms_ro NOLOGIN;
   END IF;
 END
 $$;
+
+ALTER ROLE hms_ro LOGIN PASSWORD :'HMS_RO_PASSWORD'
+  NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT;
 
 -- ----------------------------------------------------------------------------
 -- Database and schema. [CC] throughout: v2 and the gate are both silent here,

@@ -45,3 +45,96 @@ export async function closeReadPool(): Promise<void> {
   await pool?.end();
   pool = undefined;
 }
+
+// B6. The console's read model.
+//
+// This goes through the READ pool deliberately. The console is the busiest
+// reader in the system and it has no business holding a connection that could
+// write; routing it here means a console bug cannot corrupt a queue, and it is
+// hms_ro's grant that makes that structural rather than a promise.
+export type QueueRow = {
+  readonly id: string;
+  readonly status: string;
+  readonly channel: string;
+  readonly joined_at: Date;
+  readonly confirmed_at: Date | null;
+  readonly undeliverable_at: Date | null;
+  readonly prompt_delivered_at: Date | null;
+  readonly left_reason: string | null;
+  readonly counter: string | null;
+  readonly contact: string | null;
+};
+
+export async function readQueue(locationId: string): Promise<readonly QueueRow[]> {
+  const result = await readPool().query<QueueRow>(
+    `SELECT id, status, channel, joined_at, confirmed_at, undeliverable_at,
+            prompt_delivered_at, left_reason, counter, contact
+       FROM entries
+      WHERE location_id = $1
+        AND status IN ('provisional', 'waiting', 'called', 'serving')
+      ORDER BY joined_at`,
+    [locationId],
+  );
+  return result.rows;
+}
+
+export type DayTotals = {
+  readonly served: number;
+  readonly noshow: number;
+  readonly left: number;
+};
+
+export async function readDayTotals(locationId: string): Promise<DayTotals> {
+  const result = await readPool().query<{ status: string; n: string }>(
+    `SELECT status, count(*)::text AS n
+       FROM entries
+      WHERE location_id = $1 AND status IN ('served', 'noshow', 'left')
+      GROUP BY status`,
+    [locationId],
+  );
+  const by = new Map(result.rows.map((r) => [r.status, Number(r.n)]));
+  return {
+    served: by.get("served") ?? 0,
+    noshow: by.get("noshow") ?? 0,
+    left: by.get("left") ?? 0,
+  };
+}
+
+export type LocationRow = {
+  readonly id: string;
+  readonly name: string;
+  readonly close_of_day_policy: string;
+  readonly timezone: string;
+};
+
+export async function readLocations(): Promise<readonly LocationRow[]> {
+  const result = await readPool().query<LocationRow>(
+    "SELECT id, name, close_of_day_policy, timezone FROM locations ORDER BY name",
+  );
+  return result.rows;
+}
+
+// The fairness log, newest first. The console shows it because an audit trail
+// nobody can see is an audit trail nobody checks.
+export type EventRow = {
+  readonly id: string;
+  readonly kind: string;
+  readonly from_status: string | null;
+  readonly to_status: string | null;
+  readonly actor: string | null;
+  readonly reason: string | null;
+  readonly approver: string | null;
+  readonly occurred_at: Date;
+};
+
+export async function readEvents(
+  locationId: string,
+  limit = 30,
+): Promise<readonly EventRow[]> {
+  const result = await readPool().query<EventRow>(
+    `SELECT id, kind, from_status, to_status, actor, reason, approver, occurred_at
+       FROM events WHERE location_id = $1 ORDER BY id DESC LIMIT $2`,
+    [locationId, limit],
+  );
+  return result.rows;
+}

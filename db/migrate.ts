@@ -34,6 +34,18 @@ export async function migrate(): Promise<void> {
     connectionString: process.env["HMS_DDL_URL"],
     application_name: "hms-migrate",
   });
+  // C0: surface RAISE NOTICE from migrations.
+  //
+  // Migration 005 reports its backfill's matched and unmatched counts through
+  // RAISE NOTICE. Without this listener those notices are discarded by the
+  // driver and the migration would report nothing while appearing to report
+  // something, which is the failure shape this project keeps finding: a
+  // guarantee that reads as present and is unreachable. A backfill that reports
+  // nothing is indistinguishable from a backfill that did nothing.
+  client.on("notice", (notice) => {
+    if (notice.message !== undefined) console.log(`      ${notice.message}`);
+  });
+
   await client.connect();
 
   try {

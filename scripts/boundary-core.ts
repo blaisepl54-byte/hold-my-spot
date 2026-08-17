@@ -81,6 +81,11 @@ export type Violation = {
 const under = (file: string, dir: string): boolean => file.startsWith(dir);
 
 const AGENTS = "src/agents/";
+// C3. `src/synthetic/` generates history as PURE VALUES, per the order. Adding
+// it to the pure set makes that a checked property rather than an intention:
+// the moment it imports pg or a node builtin to "just write the rows itself",
+// X1 fails. That is exactly the drift the order forbids with "no new write path".
+const SYNTHETIC = "src/synthetic/";
 const DOMAIN = "src/domain/";
 const GOVERNANCE = "src/governance/";
 const WRITE = "src/persistence/write/";
@@ -110,6 +115,9 @@ export const WRITE_POOL_IMPORTERS: readonly { readonly path: string; readonly wh
   { path: "scripts/b4-close-of-day-proof.ts", why: "teardown" },
   { path: "scripts/b5-transport-proof.ts", why: "teardown" },
   { path: "scripts/b6-console-proof.ts", why: "teardown" },
+  { path: "scripts/c1-service-record-proof.ts", why: "drives the lifecycle through the governed write and closes the pool afterwards" },
+  { path: "scripts/c2-survey-proof.ts", why: "drives the lifecycle and the survey through named operations, closes the pool afterwards" },
+  { path: "scripts/c3-wait-time-proof.ts", why: "calls estimateWaitFor and closes the pool afterwards" },
 ];
 
 const permittedWriteImporter = (file: string): boolean =>
@@ -137,7 +145,17 @@ export const ENTRY_WRITERS_PERMITTED: readonly { readonly path: string; readonly
   { path: "scripts/b3-invariant-proof.ts", why: "fixture teardown as hms_ddl" },
   { path: "scripts/b4-close-of-day-proof.ts", why: "seeds all seven statuses directly; reaching served and noshow through the machine would prove nothing about close of day" },
   { path: "scripts/b5-transport-proof.ts", why: "fixture teardown as hms_ddl" },
+  {
+    path: "scripts/c0-identities-proof.ts",
+    why: "seeds an entry carrying a counter label that matches no counters row, to prove counter_id is left NULL rather than invented. This write CANNOT go through the governed write: callNext resolves counter_id from the label, which is exactly the behaviour the test exists to bypass.",
+  },
   { path: "scripts/b6-console-proof.ts", why: "fixture teardown as hms_ddl" },
+  { path: "scripts/c1-service-record-proof.ts", why: "fixture teardown as hms_ddl; the lifecycle itself is driven through named operations, never by writing the timestamps directly" },
+  { path: "scripts/c2-survey-proof.ts", why: "fixture teardown as hms_ddl" },
+  { path: "scripts/c3-wait-time-proof.ts", why: "fixture teardown as hms_ddl" },
+  { path: "scripts/c4-dashboard-proof.ts", why: "builds a controlled fixture as hms_ddl that FORCES the provisional, calibration and survey branches to fire; seeded data left them untested" },
+  { path: "scripts/c5-adherence-proof.ts", why: "builds a fixture as hms_ddl that forces the unapproved-override defect path, which I7 makes unreachable through the application" },
+  { path: "scripts/seed-demo.ts", why: "seeds SYNTHETIC service history as hms_ddl from pure values generated in src/synthetic. The order requires the seed to write; src/synthetic itself stays pure and is bound by X1." },
 ];
 
 const permittedEntryWriter = (file: string): boolean =>
@@ -214,7 +232,10 @@ export function checkBoundaries(graph: ModuleGraph): readonly Violation[] {
   // --- X1. Edges that do NOT target src/ are bound too. -------------------
   for (const edge of graph.edges) {
     const isPure =
-      under(edge.from, AGENTS) || under(edge.from, DOMAIN) || under(edge.from, GOVERNANCE);
+      under(edge.from, AGENTS) ||
+      under(edge.from, DOMAIN) ||
+      under(edge.from, GOVERNANCE) ||
+      under(edge.from, SYNTHETIC);
     if (!isPure) continue;
     if (edge.kind === "relative") continue;
     if (edge.typeOnly) continue;
@@ -222,7 +243,7 @@ export function checkBoundaries(graph: ModuleGraph): readonly Violation[] {
       property: "X1",
       detail:
         `${edge.from} imports the ${edge.kind} "${edge.to}". ` +
-        `agents/, domain/ and governance/ must import no external package and no node builtin.`,
+        `agents/, domain/, governance/ and synthetic/ must import no external package and no node builtin.`,
     });
   }
 

@@ -117,7 +117,7 @@ async function main(): Promise<void> {
     ["P1", "agents/ cannot reach a write path, transitively"],
     ["P2", "domain/ imports nothing from src/"],
     ["P3", "persistence/write/ is imported only by permitted importers"],
-    ["X1", "agents/, domain/, governance/ import no package and no node builtin"],
+    ["X1", "agents/, domain/, governance/, synthetic/ import no package and no node builtin"],
     ["X12", "governance/ reaches only domain/ and its own siblings"],
     ["R1", "orchestrator/apply/ hands no pool or client onward"],
     ["CO-2", "only orchestrator/apply/ writes to entries, and the governed write stays unexported"],

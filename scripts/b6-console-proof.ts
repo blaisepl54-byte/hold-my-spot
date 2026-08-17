@@ -72,7 +72,10 @@ async function main(): Promise<void> {
   const locationId = loc.rows[0]?.id;
   if (locationId === undefined) throw new Error("no location");
 
-  const server = startServer(PORT);
+  // C6: honour HOST so this proof genuinely runs under BOTH bind settings, as
+  // Build Order 3 requires. The probes below all use localhost, which answers
+  // under either bind, so the difference under test is the bind itself.
+  const server = startServer(PORT, process.env["HOST"] ?? undefined);
   await new Promise((r) => setTimeout(r, 300));
 
   try {

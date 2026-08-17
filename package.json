@@ -20,7 +20,14 @@
     "b3i": "node --env-file=.env scripts/b3-invariant-proof.ts",
     "b4": "node --env-file=.env scripts/b4-close-of-day-proof.ts",
     "b5": "node --env-file=.env scripts/b5-transport-proof.ts",
-    "b6": "node --env-file=.env scripts/b6-console-proof.ts"
+    "b6": "node --env-file=.env scripts/b6-console-proof.ts",
+    "c6": "node --env-file=.env scripts/c6-binding-proof.ts",
+    "c0": "node --env-file=.env scripts/c0-identities-proof.ts",
+    "c1": "node --env-file=.env scripts/c1-service-record-proof.ts",
+    "c2": "node --env-file=.env scripts/c2-survey-proof.ts",
+    "c3": "node --env-file=.env scripts/c3-wait-time-proof.ts",
+    "c4": "node --env-file=.env scripts/c4-dashboard-proof.ts",
+    "c5": "node --env-file=.env scripts/c5-adherence-proof.ts"
   },
   "dependencies": {
     "express": "^5",

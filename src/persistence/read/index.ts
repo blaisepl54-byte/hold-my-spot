@@ -138,3 +138,82 @@ export async function readEvents(
   );
   return result.rows;
 }
+
+// C0. Counters and service types, read as hms_ro.
+export type CounterRow = {
+  readonly id: string;
+  readonly label: string;
+  readonly active: boolean;
+};
+
+export async function readCounters(locationId: string): Promise<readonly CounterRow[]> {
+  const result = await readPool().query<CounterRow>(
+    "SELECT id, label, active FROM counters WHERE location_id = $1 AND active ORDER BY label",
+    [locationId],
+  );
+  return result.rows;
+}
+
+export type ServiceTypeRow = {
+  readonly id: string;
+  readonly code: string;
+  readonly label: string;
+  readonly sort_order: number;
+};
+
+// PROVISIONAL LIST, per R-I. The caller is expected to say so wherever these
+// are displayed; the data does not carry its own disclaimer, so the surfaces do.
+export async function readServiceTypes(locationId: string): Promise<readonly ServiceTypeRow[]> {
+  const result = await readPool().query<ServiceTypeRow>(
+    `SELECT id, code, label, sort_order FROM service_types
+      WHERE location_id = $1 AND active ORDER BY sort_order, label`,
+    [locationId],
+  );
+  return result.rows;
+}
+
+// C2. Is there an unanswered survey for this entry? Read as hms_ro.
+export async function readSurveyStatus(
+  entryId: string,
+): Promise<{ readonly exists: boolean; readonly open: boolean }> {
+  const result = await readPool().query<{ responded_at: Date | null }>(
+    "SELECT responded_at FROM surveys WHERE entry_id = $1",
+    [entryId],
+  );
+  const row = result.rows[0];
+  return { exists: row !== undefined, open: row !== undefined && row.responded_at === null };
+}
+
+// C3. Completed service history, the agent's input. Read as hms_ro.
+//
+// Only entries that were actually SERVED with a closed window count. An entry
+// that left, no-showed, or is still being served has no duration, and including
+// it would drag every median toward a number nobody observed.
+export type ServiceHistoryRow = {
+  readonly service_type_id: string | null;
+  readonly counter_id: string | null;
+  readonly hour_of_day: number;
+  readonly duration_minutes: number;
+};
+
+export async function readServiceHistory(
+  locationId: string,
+  limit = 2000,
+): Promise<readonly ServiceHistoryRow[]> {
+  const result = await readPool().query<ServiceHistoryRow>(
+    `SELECT service_type_id,
+            counter_id,
+            EXTRACT(HOUR FROM serving_started_at)::int AS hour_of_day,
+            (EXTRACT(EPOCH FROM (serving_ended_at - serving_started_at)) / 60.0)::float8
+              AS duration_minutes
+       FROM entries
+      WHERE location_id = $1
+        AND status = 'served'
+        AND serving_started_at IS NOT NULL
+        AND serving_ended_at IS NOT NULL
+      ORDER BY serving_ended_at DESC
+      LIMIT $2`,
+    [locationId, limit],
+  );
+  return result.rows;
+}

@@ -56,6 +56,8 @@ import type {
   Trigger,
 } from "../../domain/index.ts";
 import { newOperationalCounter, statusChangeEvent } from "../../governance/index.ts";
+import { estimateWait } from "../../agents/wait-time.ts";
+import type { CompletedService, WaitEstimate } from "../../agents/wait-time.ts";
 import { writePool } from "../../persistence/write/index.ts";
 import type { Transport } from "../../tools/whatsapp/index.ts";
 
@@ -143,6 +145,10 @@ async function applyStatusChange(
     readonly extraSet?: string;
     // Caller-supplied, therefore PARAMETERISED. The console names its counters.
     readonly counter?: string | null;
+    // C0. The resolved counters row. The label above is RETAINED as derived
+    // display, because B6 asserts it and dropping it would break that proof;
+    // this is the identity a service is actually attributed to.
+    readonly counterId?: string | null;
   },
 ): Promise<Applied<{ readonly entryId: string; readonly eventId: string }>> {
   const approver = input.approver ?? null;
@@ -158,6 +164,32 @@ async function applyStatusChange(
     params.push(input.counter);
     sets.push(`counter = $${String(params.length)}`);
   }
+  if (input.counterId !== undefined) {
+    params.push(input.counterId);
+    sets.push(`counter_id = $${String(params.length)}`);
+  }
+  // C1. The service window, written HERE and derived from the transition
+  // itself rather than passed in by a caller.
+  //
+  // This placement is the whole point. C1 says both are "written by the
+  // governed write function, in the same transaction as the status change and
+  // its fairness event, exactly as every other entry write. No second write
+  // path." Deriving them from `from` and `to` means every route into and out of
+  // serving gets them, including ones written later by someone who never read
+  // this comment. A caller-supplied timestamp would be a rule to remember, and
+  // rules to remember are what CO-2 exists to replace.
+  //
+  // On RE-ENTERING serving, ended_at is cleared as started_at is set. An
+  // accidental check-in that is undone and redone would otherwise leave
+  // ended_at earlier than started_at, and a derived duration would go negative.
+  // The undo is still in the fairness log; what is reset is the window, not the
+  // history.
+  if (input.to === "serving") {
+    sets.push("serving_started_at = now()", "serving_ended_at = NULL");
+  } else if (input.entry.status === "serving") {
+    sets.push("serving_ended_at = now()");
+  }
+
   if (input.extraSet !== undefined) {
     sets.push(input.extraSet);
   }
@@ -221,6 +253,11 @@ export async function joinQueue(input: {
   readonly channel: Channel;
   readonly actor?: string | null;
   readonly contact?: string | null;
+  // C4. The estimate the customer was given, stored so calibration can compare
+  // what we SAID against what happened. Recomputing it later would compare
+  // today's model against today's data and always look accurate.
+  readonly predictedLowMinutes?: number | null;
+  readonly predictedHighMinutes?: number | null;
 }): Promise<Applied<{ readonly entryId: string; readonly status: Status }>> {
   return withQueueLock(input.locationId, async (client) => {
     const status = initialStatusFor(input.channel);
@@ -229,9 +266,17 @@ export async function joinQueue(input: {
     // joined_at is deliberately absent: the server supplies it and hms_rw
     // cannot write it, which is what makes I1 structural rather than polite.
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO entries (location_id, status, channel, contact)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [input.locationId, status, input.channel, input.contact ?? null],
+      `INSERT INTO entries (location_id, status, channel, contact,
+                            predicted_low_minutes, predicted_high_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [
+        input.locationId,
+        status,
+        input.channel,
+        input.contact ?? null,
+        input.predictedLowMinutes ?? null,
+        input.predictedHighMinutes ?? null,
+      ],
     );
     const entryId = inserted.rows[0]?.id;
     if (entryId === undefined) return { ok: false, reason: "insert produced no row" };
@@ -382,6 +427,20 @@ export async function callNext(input: {
       joinedAt: r.joined_at,
     }));
 
+    // C0. Resolve the label to a counters row. NOT FOUND IS NOT AN ERROR and is
+    // not invented: counter_id stays null and the label still records what was
+    // typed. B6 calls with "Counter 1" against a branch that has no counters
+    // seeded, and it must keep passing.
+    let counterId: string | null = null;
+    if (input.counter !== undefined && input.counter !== null && input.counter !== "") {
+      const found = await client.query<{ id: string }>(
+        "SELECT id FROM counters WHERE location_id = $1 AND label = $2 AND active",
+        [input.locationId, input.counter],
+      );
+      counterId = found.rows[0]?.id ?? null;
+    }
+
+
     // Out-of-order call: gated, needs a named approver (I7). The gate is
     // enforced in domain via checkTransition, not here.
     if (input.outOfOrderEntryId !== undefined) {
@@ -395,6 +454,7 @@ export async function callNext(input: {
         approver: input.approver ?? null,
         reason: "out-of-order call",
         counter: input.counter ?? null,
+        counterId,
       });
       if (!applied.ok) return applied;
       return {
@@ -426,6 +486,7 @@ export async function callNext(input: {
           ? null
           : `stepped over ${String(steppedOver.length)} unconfirmed entr${steppedOver.length === 1 ? "y" : "ies"}`,
       counter: input.counter ?? null,
+      counterId,
     });
     if (!applied.ok) return applied;
 
@@ -485,7 +546,7 @@ export async function completeService(input: {
     ...input,
     to: "served",
     trigger: "complete",
-    extraSet: "counter = NULL",
+    extraSet: "counter = NULL, counter_id = NULL",
   });
 }
 
@@ -498,7 +559,27 @@ export async function markNoShow(input: {
     ...input,
     to: "noshow",
     trigger: "staff_marks_noshow",
-    extraSet: "counter = NULL",
+    extraSet: "counter = NULL, counter_id = NULL",
+  });
+}
+
+// C1. Undo an accidental CHECK-IN: serving -> called, v4 line 216, W22.
+//
+// Added because C1's reset-on-re-entry logic in the governed write was
+// otherwise UNREACHABLE. The transition existed in the domain table and no
+// named operation performed it, so the branch that clears serving_ended_at
+// could never fire and its test passed vacuously. Defensive code for a path
+// nobody can take is worse than no code: it reads as a handled case and is not.
+export async function undoCheckIn(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly actor: string;
+}): Promise<Applied<{ readonly entryId: string }>> {
+  return counterTransition({
+    ...input,
+    to: "called",
+    trigger: "undo_check_in",
+    reason: "operator undid an accidental check-in",
   });
 }
 
@@ -514,7 +595,7 @@ export async function undoCall(input: {
     to: "waiting",
     trigger: "undo_call",
     reason: "operator undid an accidental call",
-    extraSet: "counter = NULL",
+    extraSet: "counter = NULL, counter_id = NULL",
   });
 }
 
@@ -732,6 +813,166 @@ export async function closeOfDay(input: {
         notify: released,
       },
     };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// C2. The survey. Two questions, per R-H, because response rate over WhatsApp
+// collapses past two taps.
+//
+// A SURVEY IS NOT A FAIRNESS EVENT AND WRITES NOTHING TO `events`. The fairness
+// log records changes to place in line, and it is the one artifact in this
+// system whose meaning is currently exact. Mixing satisfaction data into it
+// would make "how many events did this entry generate" stop answering "how many
+// times did this person's place change", which is the only question the log
+// exists to answer.
+//
+// Sent through the SAME transport interface as the confirmation prompt, so the
+// simulated surface carries it identically to Twilio and the survey demos with
+// or without an account.
+// ---------------------------------------------------------------------------
+export const SURVEY_QUESTIONS =
+  "Two quick questions. 1) Did you get what you came for? Reply YES or NO. " +
+  "2) How was the wait: SHORTER than expected, ABOUT RIGHT, or LONGER?";
+
+export type SurveySendOutcome = {
+  readonly sent: boolean;
+  readonly surveyId: string | null;
+  readonly reason: string | null;
+};
+
+export async function sendSurvey(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly transport: Transport;
+}): Promise<Applied<SurveySendOutcome>> {
+  // Read the destination outside the lock; a read moves nobody's place in line.
+  const lookup = await writePool().query<{ contact: string | null; status: Status }>(
+    "SELECT contact, status FROM entries WHERE id = $1",
+    [input.entryId],
+  );
+  const row = lookup.rows[0];
+  if (row === undefined) return { ok: false, reason: "entry not found" };
+
+  // An on-site entry has no contact. That is not a failure, it is a fact about
+  // walk-ins, and the honest result is "not sent" with the reason rather than a
+  // survey row that was never delivered inflating the sent count.
+  if (row.contact === null || row.contact === "") {
+    return { ok: true, value: { sent: false, surveyId: null, reason: "no contact to survey" } };
+  }
+
+  // The network call happens OUTSIDE the lock, for the same reason as the
+  // confirmation prompt: a transport timeout must not become a queue outage.
+  const delivery = await input.transport.send({
+    to: row.contact,
+    body: SURVEY_QUESTIONS,
+    entryId: input.entryId,
+  });
+
+  if (!delivery.ok) {
+    return { ok: true, value: { sent: false, surveyId: null, reason: delivery.reason } };
+  }
+
+  return withQueueLock<SurveySendOutcome>(input.locationId, async (client) => {
+    // ON CONFLICT DO NOTHING enforces "asked once" at the database rather than
+    // by the caller remembering. A second survey would both annoy and
+    // double-count in every rate the dashboard shows.
+    const created = await client.query<{ id: string }>(
+      `INSERT INTO surveys (entry_id) VALUES ($1)
+       ON CONFLICT (entry_id) DO NOTHING RETURNING id`,
+      [input.entryId],
+    );
+    const surveyId = created.rows[0]?.id ?? null;
+    return {
+      ok: true,
+      value: {
+        sent: surveyId !== null,
+        surveyId,
+        reason: surveyId === null ? "already surveyed" : null,
+      },
+    };
+  });
+}
+
+export type WaitMatch = "shorter" | "as_expected" | "longer";
+
+export async function recordSurveyResponse(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly achieved: boolean;
+  readonly waitMatch: WaitMatch;
+}): Promise<Applied<{ readonly surveyId: string }>> {
+  return withQueueLock(input.locationId, async (client) => {
+    // responded_at is set in the SAME statement as the answers, so a responded
+    // survey can never exist without its timestamp, and an unanswered one is
+    // distinguishable from one answered with a false.
+    const updated = await client.query<{ id: string }>(
+      `UPDATE surveys
+          SET responded_at = now(), achieved = $2, wait_match = $3
+        WHERE entry_id = $1 AND responded_at IS NULL
+        RETURNING id`,
+      [input.entryId, input.achieved, input.waitMatch],
+    );
+    const surveyId = updated.rows[0]?.id;
+    if (surveyId === undefined) {
+      return { ok: false, reason: "no unanswered survey for this entry" };
+    }
+    // Deliberately NO event write here. See the note above this section.
+    return { ok: true, value: { surveyId } };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// C3. The orchestrator's half of the wait time estimate.
+//
+// THE SPLIT IS THE POINT, and it is the guarantee that replaced MCP: the AGENT
+// is a pure function that takes a snapshot and returns a proposal. It opens
+// nothing. THIS function does the I/O, hands the agent plain values, and
+// returns what the agent said without editing it.
+//
+// If the estimate logic lived here it would have a database connection in
+// scope, and the purity claim would be a comment rather than a checked
+// property. P1 and X1 make it checked.
+// ---------------------------------------------------------------------------
+export async function estimateWaitFor(input: {
+  readonly locationId: string;
+  readonly serviceTypeId?: string | null;
+  readonly counterId?: string | null;
+  readonly aheadInQueue: number;
+  readonly hourOfDay?: number;
+}): Promise<WaitEstimate> {
+  // Read through the WRITE pool's client only because this module owns it; the
+  // query is a plain SELECT and moves nobody's place in line.
+  const rows = await writePool().query<{
+    service_type_id: string | null;
+    counter_id: string | null;
+    hour_of_day: number;
+    duration_minutes: number;
+  }>(
+    `SELECT service_type_id, counter_id,
+            EXTRACT(HOUR FROM serving_started_at)::int AS hour_of_day,
+            (EXTRACT(EPOCH FROM (serving_ended_at - serving_started_at)) / 60.0)::float8
+              AS duration_minutes
+       FROM entries
+      WHERE location_id = $1 AND status = 'served'
+        AND serving_started_at IS NOT NULL AND serving_ended_at IS NOT NULL
+      ORDER BY serving_ended_at DESC LIMIT 2000`,
+    [input.locationId],
+  );
+
+  const history: CompletedService[] = rows.rows.map((r) => ({
+    serviceTypeId: r.service_type_id,
+    counterId: r.counter_id,
+    hourOfDay: r.hour_of_day,
+    durationMinutes: r.duration_minutes,
+  }));
+
+  return estimateWait({
+    history,
+    aheadInQueue: input.aheadInQueue,
+    serviceTypeId: input.serviceTypeId ?? null,
+    counterId: input.counterId ?? null,
+    hourOfDay: input.hourOfDay ?? new Date().getHours(),
   });
 }
 

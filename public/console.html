@@ -91,6 +91,32 @@
     </div>
 
     <div class="panel" style="margin-top:20px">
+      <h2>Branch configuration</h2>
+      <div class="log" id="provisional"></div>
+    </div>
+
+    <div class="panel" style="margin-top:20px">
+      <h2>Branch dashboard</h2>
+      <div class="bar">
+        <label style="color:var(--dim);font-size:13px">Window
+          <select id="win">
+            <option value="1">1 day</option>
+            <option value="7">7 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </label>
+        <button onclick="loadDash()">Refresh</button>
+        <button onclick="exportReport()">Export report</button>
+      </div>
+      <div id="dash"></div>
+      <div class="log" id="dashnotes"></div>
+      <h2 style="border-top:1px solid var(--line)">Adherence</h2>
+      <div id="adherence"></div>
+      <div class="log" id="adhnotes"></div>
+    </div>
+
+    <div class="panel" style="margin-top:20px">
       <h2>Fairness log</h2>
       <div class="log" id="log"></div>
     </div>
@@ -106,12 +132,18 @@
 </div>
 
 <script type="module">
-const COUNTERS = ["Counter 1", "Counter 2", "Counter 3"];
+// C0. Counters come from the API. They used to be a hardcoded array in this
+// file, which meant a counter existed only in the browser and a service could
+// not be attributed to it. Now they are rows.
+let COUNTERS = [];
+let SERVICE_TYPES = [];
+let SERVICE_TYPES_PROVISIONAL = false;
 let locationId = null;
 let board = { queue: [], totals: { served: 0, noshow: 0, left: 0 }, events: [] };
 let inbox = [];
 // The phone follows the most recent remote entry, which is the one the demo is about.
 let phoneEntryId = null;
+let surveyOpen = false;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -132,6 +164,10 @@ async function refresh() {
   if (b.ok) board = b.value;
   const i = await api(`/api/inbox${phoneEntryId ? `?entryId=${encodeURIComponent(phoneEntryId)}` : ""}`);
   if (i.ok) inbox = i.value;
+  if (phoneEntryId) {
+    const s = await api(`/api/survey-status?entryId=${encodeURIComponent(phoneEntryId)}`);
+    surveyOpen = s.ok && s.value.open === true;
+  }
   render();
 }
 
@@ -168,7 +204,9 @@ function render() {
         </div>`;
       }).join("");
 
-  $("counters").innerHTML = COUNTERS.map((c) => {
+  $("counters").innerHTML = COUNTERS.length === 0
+    ? `<div class="empty">No counters configured for this branch. Run <code>npm run seed</code>.</div>`
+    : COUNTERS.map((c) => {
     const at = board.queue.find((e) => e.counter === c && (e.status === "called" || e.status === "serving"));
     const callable = line.some((e) => e.status === "waiting");
     if (!at) {
@@ -185,6 +223,16 @@ function render() {
     </div>`;
   }).join("");
 
+  // R-I: the provisional service type list is footnoted wherever it appears.
+  const foot = $("provisional");
+  if (foot) {
+    foot.innerHTML = SERVICE_TYPES.length === 0 ? "" :
+      `Service types: ${SERVICE_TYPES.map((t) => esc(t.label)).join(" · ")}` +
+      (SERVICE_TYPES_PROVISIONAL
+        ? ` <b>— PROVISIONAL placeholder list, pending rung 2 branch interviews.</b>`
+        : "");
+  }
+
   $("log").innerHTML = board.events.length === 0
     ? `<div>No events yet.</div>`
     : board.events.map((e) => `<div>${new Date(e.occurred_at).toLocaleTimeString()} ·
@@ -196,6 +244,27 @@ function render() {
     ? `<div class="empty">No messages yet. Join by WhatsApp to see the customer's view.</div>`
     : inbox.map((m) => `<div class="msg">${esc(m.body)}
         <div class="meta">delivered: ${m.delivered ? "yes" : "no"} · attempt ${m.attempt}</div></div>`).join("");
+
+  // C2. The survey, two taps, per R-H. Shown when the visit is over and the
+  // customer still has an unanswered survey. Answering writes to `surveys` and
+  // NOT to the fairness log.
+  const served = phoneEntryId && !mine && surveyOpen;
+  if (served) {
+    $("phoneActions").innerHTML =
+      `<div style="width:100%">
+         <div style="color:var(--dim);font-size:13px;margin-bottom:6px">Two quick questions.</div>
+         <div style="margin-bottom:6px">Did you get what you came for?</div>
+         <button class="go" onclick="survey(true)">Yes</button>
+         <button onclick="survey(false)">No</button>
+         <div style="margin:10px 0 6px">How was the wait?</div>
+         <select id="waitMatch">
+           <option value="shorter">Shorter than expected</option>
+           <option value="as_expected">About right</option>
+           <option value="longer">Longer than expected</option>
+         </select>
+       </div>`;
+    return;
+  }
 
   const pos = mine ? inLine().findIndex((e) => e.id === mine.id) + 1 : 0;
   $("phoneActions").innerHTML = !mine
@@ -216,6 +285,106 @@ window.join = async (channel) => {
 window.callNext = async (counter) => { await api("/api/call-next", { locationId, counter }); refresh(); };
 window.act = async (verb, entryId) => { await api(`/api/${verb}`, { locationId, entryId }); refresh(); };
 window.closeDay = async () => { await api("/api/close-of-day", { locationId }); refresh(); };
+window.survey = async (achieved) => {
+  const waitMatch = ($("waitMatch") || {}).value || "as_expected";
+  const r = await api("/api/survey", { locationId, entryId: phoneEntryId, achieved, waitMatch });
+  if (r.ok) { surveyOpen = false; $("phoneActions").innerHTML =
+    `<span style="color:var(--dim);font-size:13px">Thank you. Your answers are recorded.</span>`; }
+};
+
+async function loadBranchConfig() {
+  const c = await api(`/api/counters?locationId=${encodeURIComponent(locationId)}`);
+  COUNTERS = c.ok ? c.value.map((x) => x.label) : [];
+  const t = await api(`/api/service-types?locationId=${encodeURIComponent(locationId)}`);
+  SERVICE_TYPES = t.ok ? t.value : [];
+  // The disclaimer travels WITH the data from the API, so a client cannot
+  // render the list and forget to say it is provisional.
+  SERVICE_TYPES_PROVISIONAL = t.provisional === true;
+}
+
+// C4. The dashboard is a CLIENT of a JSON endpoint, rendered here. Per the
+// order this is "the single decision that makes Phase 5 a deploy rather than a
+// rewrite": this function only needs a different base URL to run on Netlify.
+let dashboard = null;
+
+const pct = (r) => r.rate === null ? "n/a" : `${Math.round(r.rate * 100)}%`;
+// R-F: a rate is NEVER rendered without its denominator.
+const withN = (r) => `${pct(r)} <span style="color:var(--dim)">(${r.numerator}/${r.denominator})</span>` +
+  (r.provisional ? ` <b style="color:var(--warn)">provisional</b>` : "");
+const dur = (st) => st.medianMinutes === null ? "n/a"
+  : `${st.medianMinutes.toFixed(1)}m <span style="color:var(--dim)">IQR ${st.q1Minutes.toFixed(1)}-${st.q3Minutes.toFixed(1)}, n=${st.count}</span>` +
+    (st.provisional ? ` <b style="color:var(--warn)">provisional</b>` : "");
+
+window.loadDash = async () => {
+  const days = ($("win") || {}).value || "30";
+  const r = await api(`/api/dashboard?locationId=${encodeURIComponent(locationId)}&windowDays=${days}`);
+  if (!r.ok) return;
+  dashboard = r.value;
+  const d = dashboard;
+
+  const counters = d.counters.map((c) => `
+    <div class="row">
+      <div class="who">
+        <div class="nm">${esc(c.label)}</div>
+        <div class="sub">Services ${dur(c.services)}</div>
+        <div class="sub">Solve rate ${withN(c.solveRate)} &middot; surveys sent ${c.surveysSent}</div>
+        <div class="sub">Wait felt: shorter ${c.waitMatch.shorter} &middot; about right ${c.waitMatch.asExpected} &middot; longer ${c.waitMatch.longer} (of ${c.waitMatch.responses} responses)</div>
+        ${c.byServiceType.map((t) => `<div class="sub">&nbsp;&nbsp;${esc(t.label)}: ${dur(t.stats)}</div>`).join("")}
+      </div>
+    </div>`).join("");
+
+  const types = d.serviceTypes.map((t) => `
+    <div class="row">
+      <div class="who">
+        <div class="nm">${esc(t.label)}</div>
+        <div class="sub">${dur(t.stats)} &middot; solve rate ${withN(t.solveRate)}</div>
+        <div class="sub">Counters: ${t.counterMix.length === 0 ? "none" :
+          t.counterMix.map((m) => `${esc(m.label)} ${Math.round(m.share * 100)}% (${m.count})`).join(" &middot; ")}</div>
+      </div>
+    </div>`).join("");
+
+  const cal = d.calibration;
+  $("dash").innerHTML =
+    `<div class="row"><div class="who"><div class="nm">Estimate calibration</div>
+       <div class="sub">Within the predicted range ${withN(cal.accuracy)} &middot; under ${cal.under} &middot; over ${cal.over}</div>
+     </div></div>` +
+    `<div class="row"><div class="who"><div class="nm" style="color:var(--dim)">By counter, ${d.windowDays} days</div></div></div>` +
+    counters +
+    `<div class="row"><div class="who"><div class="nm" style="color:var(--dim)">By service type</div></div></div>` +
+    types;
+
+  // The notes come FROM THE PAYLOAD, so this client cannot render the numbers
+  // and drop the caveats even if its author never read R-F.
+  $("dashnotes").innerHTML = d.notes.map((n) => `<div>${esc(n)}</div>`).join("");
+
+  const a = await api(`/api/adherence?locationId=${encodeURIComponent(locationId)}&windowDays=${days}`);
+  if (a.ok) {
+    const adh = a.value;
+    // FINDINGS render first and separately from figures. A defect must not read
+    // as one more number on a page of numbers.
+    const findings = adh.findings.length === 0 ? ""
+      : adh.findings.map((f) => `<div class="row"><div class="who"><div class="nm" style="color:var(--danger)">Finding</div><div class="sub">${esc(f)}</div></div></div>`).join("");
+    $("adherence").innerHTML = findings + (adh.perCounter.length === 0
+      ? `<div class="empty">No calls in this window.</div>`
+      : adh.perCounter.map((c) => `
+        <div class="row"><div class="who">
+          <div class="nm">${esc(c.label)}</div>
+          <div class="sub">In queue order ${withN(c.adherence)}</div>
+          <div class="sub">Out of order: approved ${c.outOfOrderApproved} &middot; <span style="color:${c.outOfOrderUnapproved > 0 ? "var(--danger)" : "var(--dim)"}">unapproved ${c.outOfOrderUnapproved}</span></div>
+        </div></div>`).join(""));
+    $("adhnotes").innerHTML = adh.notes.map((n) => `<div>${esc(n)}</div>`).join("");
+  }
+};
+
+window.exportReport = () => {
+  if (!dashboard) { $("err").textContent = "Load the dashboard first."; return; }
+  const blob = new Blob([JSON.stringify(dashboard, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `hold-my-spot-report-${dashboard.windowDays}d.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 
 async function boot() {
   const locs = await api("/api/locations");
@@ -225,8 +394,10 @@ async function boot() {
   }
   $("loc").innerHTML = locs.value.map((l) => `<option value="${l.id}">${esc(l.name)} · ${esc(l.close_of_day_policy)}</option>`).join("");
   locationId = locs.value[0].id;
-  $("loc").onchange = (e) => { locationId = e.target.value; phoneEntryId = null; refresh(); };
+  await loadBranchConfig();
+  $("loc").onchange = async (e) => { locationId = e.target.value; phoneEntryId = null; await loadBranchConfig(); refresh(); };
   refresh();
+  loadDash();
   setInterval(refresh, 2000);
 }
 boot();

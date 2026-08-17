@@ -10,6 +10,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.ts\"",
+    "check": "node scripts/boundary-check.ts",
     "migrate": "node --env-file=.env db/migrate.ts",
     "seed": "node --env-file=.env scripts/seed-demo.ts",
     "console": "node --env-file=.env src/api/server.ts",

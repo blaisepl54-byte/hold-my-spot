@@ -13,11 +13,23 @@
 // That function is `applyStatusChange` below. It is deliberately NOT exported:
 // every named operation routes through it, and nothing else can call it.
 //
-// TIER HONESTY, stated by the order and repeated here so it is not overclaimed:
-// this is tier V. It becomes C once a test asserts this function is the only
-// writer. IT IS NOT TIER S, and it is NOT append-only enforcement. Append-only
-// is B2's revokes on `events`, which are a different guarantee by a different
-// mechanism.
+// TIER: C as of 2026-08-16, raised from V and NOT further.
+//
+// The order set the condition: "V until something rejects a write that bypasses
+// it, and C once a test asserts the function is the only writer." That test now
+// exists. `scripts/boundary-check.ts` asserts CO-2 over `src/`, and it has been
+// demonstrated capable of failing, so this is a checked property rather than a
+// convention.
+//
+// THE SCOPE OF THAT CLAIM, stated so it is not read wider than it is: the
+// checker binds `src/`. It does not bind `scripts/` or `tests/`, which use
+// hms_ddl to seed and tear down fixtures deliberately. A future module placed
+// outside src/ could write to entries and the checker would not see it.
+//
+// IT IS STILL NOT TIER S. Nothing in the database prevents a second writer;
+// hms_rw holds INSERT and UPDATE on entries and always will, because the
+// governed write needs them. Append-only enforcement is B2's revokes on
+// `events`, which is a different guarantee by a different mechanism.
 //
 // X10: every queue write takes pg_try_advisory_xact_lock(location) inside an
 // explicit transaction. Transaction scope, non-blocking. A failed acquisition

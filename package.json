@@ -8,6 +8,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "start": "node src/api/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.ts\"",
     "check": "node scripts/boundary-check.ts",

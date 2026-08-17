@@ -21,6 +21,7 @@
 
 import pg from "pg";
 
+import { assertConnectedRole, refuseSuperuser } from "./assert-role.ts";
 import { readPool, closeReadPool } from "../src/persistence/read/index.ts";
 import { writePool, closeWritePool } from "../src/persistence/write/index.ts";
 
@@ -95,6 +96,25 @@ async function expectRejection(
 
 async function main(): Promise<void> {
   console.log("B1 connection and limits proof\n");
+
+  // P0, Build Order 4. THE PRECONDITION, asserted BEFORE anything else.
+  //
+  // This proof's entire value is that things are REFUSED. A superuser is
+  // refused nothing, so run as one it would report zero rejections and zero
+  // failures: a clean pass proving the opposite of its claim. Until Phase 5
+  // that was prevented by never holding a superuser credential, which is tier
+  // V. Railway CLI access ended that, so the guarantee is now a check that
+  // ABORTS, which is tier C.
+  console.log("--- precondition: which role is each pool actually connected as? ---");
+  for (const [pool, expected] of [
+    [readPool(), "hms_ro"],
+    [writePool(), "hms_rw"],
+  ] as const) {
+    await refuseSuperuser(pool);
+    const seen = await assertConnectedRole(pool, expected);
+    console.log(`[PASS        ] connected as ${seen.observed} on ${seen.database}, as required`);
+  }
+  console.log("");
 
   // ---- PROPERTY ONE ----------------------------------------------------
   console.log("--- property one, connection ---");

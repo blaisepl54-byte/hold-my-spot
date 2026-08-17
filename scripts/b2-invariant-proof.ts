@@ -24,6 +24,7 @@
 
 import pg from "pg";
 
+import { assertConnectedRole, refuseSuperuser } from "./assert-role.ts";
 import { writePool, closeWritePool } from "../src/persistence/write/index.ts";
 
 type Outcome = "PASS" | "FAIL" | "UNVERIFIABLE";
@@ -98,6 +99,17 @@ async function main(): Promise<void> {
   console.log(`setup: seeded location ${locationId}\n`);
 
   const rw = writePool();
+
+  // P0, Build Order 4. THE PRECONDITION, asserted BEFORE any rejection.
+  //
+  // Every check below is a rejection. Connected as a superuser NOT ONE OF THEM
+  // WOULD FIRE, and the suite would report five passes having proven nothing.
+  // Tier V (protection by absence) is replaced by tier C (a check that aborts).
+  await refuseSuperuser(rw);
+  const connectedAs = await assertConnectedRole(rw, "hms_rw");
+  console.log(
+    `--- precondition: connected as ${connectedAs.observed} on ${connectedAs.database} ---\n`,
+  );
 
   // ---- positive control: hms_rw can create an entry --------------------
   console.log("--- positive controls ---");

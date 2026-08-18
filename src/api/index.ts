@@ -26,6 +26,7 @@ import {
   removeProvisional,
   sendConfirmationPrompt,
   sendSurvey,
+  SURVEY_QUESTIONS,
   undoCall,
   undoCheckIn,
 } from "../orchestrator/apply/index.ts";
@@ -34,6 +35,7 @@ import {
   checkLiveness,
   readCounters,
   readDayTotals,
+  readEntryByContact,
   readEvents,
   readLocations,
   readQueue,
@@ -42,6 +44,10 @@ import {
 } from "../persistence/read/index.ts";
 import type { Channel } from "../domain/index.ts";
 import { SimulatedTransport } from "../tools/whatsapp/simulated.ts";
+import type { Transport } from "../tools/whatsapp/index.ts";
+import { TwilioTransport, twilioConfigFromEnv } from "../tools/whatsapp/twilio.ts";
+import { EMPTY_TWIML, normaliseSender, parseInbound, parseSurveyReply } from "../tools/whatsapp/inbound.ts";
+import { publicWebhookUrl, validateTwilioSignature } from "../tools/whatsapp/signature.ts";
 import { describeBasis, renderEstimate } from "../agents/wait-time.ts";
 import { readAdherence, readDashboard } from "../persistence/read/dashboard.ts";
 
@@ -51,6 +57,23 @@ import { readAdherence, readDashboard } from "../persistence/read/dashboard.ts";
 const transport = new SimulatedTransport();
 
 export function consoleTransport(): SimulatedTransport {
+  return transport;
+}
+
+// P1. THE ONE PLACE THAT CHOOSES A TRANSPORT, and it chooses between the two
+// adapters that already exist. No new transport path is created: B5's Twilio
+// adapter is wired, not replaced, and the simulated surface stays the DEFAULT
+// so neither becomes the only path. Twilio is opted into explicitly, because
+// selecting it means messages reach real phones and that is not a default.
+//
+// Reading the config on every call rather than once at import is deliberate:
+// it keeps this observable from a test that sets the environment, and an
+// adapter whose selection cannot be exercised is an adapter nobody has checked.
+function outboundTransport(): Transport {
+  const config = twilioConfigFromEnv(process.env);
+  if (process.env["HMS_TRANSPORT"] === "twilio" && config !== undefined) {
+    return new TwilioTransport(config);
+  }
   return transport;
 }
 
@@ -72,6 +95,10 @@ function send(res: express.Response, result: { ok: boolean; reason?: string; val
 export function createApp(): express.Express {
   const app = express();
   app.use(express.json());
+  // P1. Twilio posts form-encoded, so this is required for the inbound webhook.
+  // It must run BEFORE that route, because the signature is computed over the
+  // parsed parameters.
+  app.use(express.urlencoded({ extended: false }));
 
   // Reports ill health as well as good (v4 criterion 3): a database that is
   // down produces 503 and a differing body, not a hardcoded ok.
@@ -224,7 +251,9 @@ export function createApp(): express.Express {
       await sendConfirmationPrompt({
         entryId: result.value.entryId,
         locationId: body.locationId,
-        transport,
+        // P1: through the selector, so a reception-side join for a WhatsApp
+        // contact reaches the same phone the inbound route talks to.
+        transport: outboundTransport(),
         body:
           "You are in the queue. Reply to confirm and hold your place in line. " +
           renderEstimate(atJoin),
@@ -264,7 +293,10 @@ export function createApp(): express.Express {
     // Flagged rather than silently narrowed; widen on a ruling.
     complete: async (entryId, locationId, actor) => {
       const done = await completeService({ entryId, locationId, actor });
-      if (done.ok) await sendSurvey({ entryId, locationId, transport });
+      // P1: through the SELECTOR, not the simulated instance directly. A survey
+      // that only ever reaches the simulated inbox cannot be answered from the
+      // handset that was served.
+      if (done.ok) await sendSurvey({ entryId, locationId, transport: outboundTransport() });
       return done;
     },
     "no-show": (entryId, locationId, actor) => markNoShow({ entryId, locationId, actor }),
@@ -336,6 +368,155 @@ export function createApp(): express.Express {
         waitMatch: body.waitMatch as WaitMatch,
       }),
     );
+  });
+
+  // =====================================================================
+  // P1. The Twilio inbound webhook.
+  //
+  // THE SIGNATURE IS CHECKED BEFORE ANYTHING ELSE HAPPENS. Not after parsing
+  // the intent, not after looking up the entry: a request that fails the check
+  // must not cause so much as a database read. This URL is reachable by anyone
+  // who finds it, and without the check a stranger could join as any phone
+  // number, confirm someone else's place, answer their survey, or walk them out
+  // of the queue. Every guarantee in this system is about WHO holds a place in
+  // line, so an unauthenticated write here defeats the product rather than
+  // merely being untidy.
+  //
+  // THE RESPONSE IS ALWAYS EMPTY. Replies go out through the B5 transport
+  // adapter, the same one the console uses, so there is exactly one outbound
+  // path. Putting message bodies in the webhook response would create a second
+  // path that the simulated surface never sees.
+  // =====================================================================
+  app.post("/api/twilio/inbound", async (req, res) => {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.body as Record<string, unknown>)) {
+      params[key] = typeof value === "string" ? value : String(value);
+    }
+
+    const check = validateTwilioSignature({
+      authToken: process.env["TWILIO_AUTH_TOKEN"],
+      signature: req.get("X-Twilio-Signature"),
+      url: publicWebhookUrl(process.env),
+      params,
+    });
+
+    if (!check.ok) {
+      // The reason is logged, never returned. Telling a caller WHICH half of
+      // the check failed is free reconnaissance: it distinguishes "the service
+      // has no token" from "your signature was wrong", and the second answer
+      // tells an attacker to keep trying.
+      console.warn(`[twilio] inbound refused: ${check.reason}`);
+      res.status(403).type("text/xml").send(EMPTY_TWIML);
+      return;
+    }
+
+    const from = normaliseSender(String(params["From"] ?? ""));
+    // The branch this number belongs to. NOT inferred from the message: a
+    // system that guessed a location would put people in a queue at a branch
+    // they never chose. Unset means this deployment cannot serve WhatsApp yet,
+    // and the honest response is silence rather than a wrong branch.
+    const locationId = process.env["HMS_DEFAULT_LOCATION_ID"] ?? "";
+    if (from === "" || locationId === "") {
+      res.status(200).type("text/xml").send(EMPTY_TWIML);
+      return;
+    }
+
+    const existing = await readEntryByContact(locationId, from);
+    const survey = existing === undefined
+      ? { exists: false, open: false }
+      : await readSurveyStatus(existing.id);
+
+    let reply = "";
+
+    if (existing !== undefined && survey.open) {
+      // THE AMBIGUITY OF "YES" IS RESOLVED HERE, against state, because only
+      // this layer holds the entry. With a survey open, YES answers the first
+      // question; with a place being held, it confirms. The parser cannot know
+      // which and deliberately does not guess.
+      const answers = parseSurveyReply(String(params["Body"] ?? ""));
+      if (answers.achieved !== undefined && answers.waitMatch !== undefined) {
+        const recorded = await recordSurveyResponse({
+          entryId: existing.id,
+          locationId,
+          achieved: answers.achieved,
+          waitMatch: answers.waitMatch,
+        });
+        reply = recorded.ok
+          ? "Thank you. Your answers are recorded."
+          : "Thank you.";
+      } else if (answers.achieved !== undefined) {
+        // Half an answer is NOT written. There is nowhere to hold it, and
+        // inventing the other half would put a satisfaction figure nobody gave
+        // into the same column as the ones they did.
+        reply = "Thanks. And how was the wait: SHORTER than expected, ABOUT RIGHT, or LONGER?";
+      } else if (answers.waitMatch !== undefined) {
+        reply = "Thanks. And did you get what you came for? Reply YES or NO.";
+      } else {
+        reply = SURVEY_QUESTIONS;
+      }
+    } else {
+      const intent = parseInbound(String(params["Body"] ?? ""));
+      const holdsAPlace =
+        existing !== undefined &&
+        (existing.status === "provisional" ||
+          existing.status === "waiting" ||
+          existing.status === "called" ||
+          existing.status === "serving");
+
+      if (intent.kind === "join" && holdsAPlace) {
+        reply = "You are already in the queue. Reply YES to confirm and hold your place.";
+      } else if (intent.kind === "join") {
+        // C4's rule, unchanged: estimate BEFORE joining, so the stored
+        // prediction is the one this customer was actually given.
+        const waitingNow = (await readQueue(locationId)).filter((e) => e.status === "waiting").length;
+        const atJoin = await estimateWaitFor({ locationId, aheadInQueue: waitingNow });
+        const joined = await joinQueue({
+          locationId,
+          channel: "whatsapp",
+          contact: from,
+          actor: "customer",
+          predictedLowMinutes: atJoin.kind === "estimate" ? atJoin.lowMinutes : null,
+          predictedHighMinutes: atJoin.kind === "estimate" ? atJoin.highMinutes : null,
+        });
+        // R-G: renderEstimate carries a RANGE or the honest refusal, never a
+        // point value, and it owns both wordings so this caller cannot soften
+        // one into the other.
+        reply = joined.ok
+          ? `You are in the queue. Reply YES to confirm and hold your place. ${renderEstimate(atJoin)}`
+          : "We could not add you to the queue just now. Please ask at reception.";
+      } else if (intent.kind === "affirmative" && existing?.status === "provisional") {
+        const confirmed = await confirmEntry({ entryId: existing.id, locationId, actor: "customer" });
+        reply = confirmed.ok
+          ? "Confirmed. You have kept your place in line."
+          : "We could not confirm just now. Please ask at reception.";
+      } else if (intent.kind === "leave" && existing?.status === "waiting") {
+        const left = await leaveQueue({
+          entryId: existing.id,
+          locationId,
+          actor: "customer",
+          fromStatus: "waiting",
+        });
+        reply = left.ok
+          ? "You have left the queue. Message JOIN if you would like a new place in line."
+          : "We could not remove you just now. Please ask at reception.";
+      } else {
+        reply = "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";
+      }
+    }
+
+    // Out through the existing adapter. A failed send is reported and does not
+    // change what already happened in the queue: the customer's place was
+    // taken or given up before this line, and a transport outage must not undo
+    // it or make the webhook look failed to Twilio, which would retry and
+    // re-run the action.
+    const delivery = await outboundTransport().send({
+      to: from,
+      body: reply,
+      entryId: existing?.id ?? "unassigned",
+    });
+    if (!delivery.ok) console.warn(`[twilio] outbound reply not sent: ${delivery.reason}`);
+
+    res.status(200).type("text/xml").send(EMPTY_TWIML);
   });
 
   app.post("/api/close-of-day", async (req, res) => {

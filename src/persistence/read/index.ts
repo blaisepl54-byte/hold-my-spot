@@ -217,3 +217,33 @@ export async function readServiceHistory(
   );
   return result.rows;
 }
+
+// P1. The entry a contact currently holds, so an inbound WhatsApp message can
+// find the place in line it belongs to.
+//
+// NEWEST FIRST, and scoped to one location. A customer served yesterday who
+// messages again today must reach today's entry; ordering by joined_at
+// descending is the only rule that gets that right without a session concept.
+//
+// Read as hms_ro, so looking a customer up is structurally incapable of
+// changing anything about them.
+export type ContactEntry = {
+  readonly id: string;
+  readonly status: string;
+};
+
+export async function readEntryByContact(
+  locationId: string,
+  contact: string,
+): Promise<ContactEntry | undefined> {
+  const result = await readPool().query<ContactEntry>(
+    `SELECT id, status
+       FROM entries
+      WHERE location_id = $1
+        AND contact = $2
+      ORDER BY joined_at DESC
+      LIMIT 1`,
+    [locationId, contact],
+  );
+  return result.rows[0];
+}

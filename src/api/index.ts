@@ -94,6 +94,39 @@ function send(res: express.Response, result: { ok: boolean; reason?: string; val
 
 export function createApp(): express.Express {
   const app = express();
+
+  // =====================================================================
+  // P3. CORS, restricted to the one configured origin. NOT WILDCARD, per the
+  // order, and FAIL CLOSED: with CORS_ALLOWED_ORIGIN unset, no CORS header is
+  // ever emitted and the API is same-origin only, which is exactly the state
+  // it shipped in before P3. A wildcard here would let ANY page a staff member
+  // has open drive the console's write routes with that member's network
+  // position; the allow-list is one exact origin, compared with ===.
+  //
+  // Hand-rolled in ~20 lines rather than adding the `cors` package: this
+  // project's supply chain is zero runtime dependencies beyond express and pg,
+  // and a dependency that saves twenty readable lines does not pay for itself.
+  // =====================================================================
+  const allowedOrigin = process.env["CORS_ALLOWED_ORIGIN"] ?? "";
+  app.use((req, res, next) => {
+    const origin = req.get("Origin");
+    if (allowedOrigin !== "" && origin === allowedOrigin) {
+      res.set("Access-Control-Allow-Origin", allowedOrigin);
+      // The origin is echoed conditionally, so caches must key on it.
+      res.set("Vary", "Origin");
+      res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+    }
+    if (req.method === "OPTIONS") {
+      // Preflights are answered for the allowed origin and left bare for every
+      // other, which the browser treats as a refusal. 204 either way: the
+      // refusal is the ABSENCE of the header, per the CORS model, not a status.
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   app.use(express.json());
   // P1. Twilio posts form-encoded, so this is required for the inbound webhook.
   // It must run BEFORE that route, because the signature is computed over the

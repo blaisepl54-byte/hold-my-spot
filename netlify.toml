@@ -1,0 +1,15 @@
+# P3. The console as a static client of the Railway API.
+#
+# Model A from the first publish: this file makes the deploy a consequence of a
+# push, and `netlify deploy --prod` is never used. Per-context environment is
+# the mechanism that will keep development Clerk keys out of production when P2
+# lands; HMS_API_BASE_URL is set per context in the Netlify UI/CLI, not here,
+# because this file is public in the repo and configuration values do not
+# belong in it.
+
+[build]
+  command = "node scripts/build-console.mjs"
+  publish = "web/dist"
+
+[build.environment]
+  NODE_VERSION = "24"

@@ -131,7 +131,11 @@
   </div>
 </div>
 
+<script src="env.js"></script>
 <script type="module">
+// P3. The ONE seam between this client and its API. Empty means same-origin
+// (the Railway-served copy); the Netlify build writes an absolute URL here.
+const API_BASE = window.HMS_API_BASE ?? "";
 // C0. Counters come from the API. They used to be a hardcoded array in this
 // file, which meant a counter existed only in the browser and a service could
 // not be attributed to it. Now they are rows.
@@ -149,7 +153,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 async function api(path, body) {
-  const res = await fetch(path, body ? {
+  const res = await fetch(API_BASE + path, body ? {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   } : undefined);
   const json = await res.json();

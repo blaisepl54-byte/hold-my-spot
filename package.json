@@ -29,7 +29,8 @@
     "c3": "node --env-file=.env scripts/c3-wait-time-proof.ts",
     "c4": "node --env-file=.env scripts/c4-dashboard-proof.ts",
     "c5": "node --env-file=.env scripts/c5-adherence-proof.ts",
-    "p1": "node scripts/p1-signature-proof.ts"
+    "p1": "node scripts/p1-signature-proof.ts",
+    "p3": "node scripts/p3-cors-proof.ts"
   },
   "dependencies": {
     "express": "^5",

@@ -150,6 +150,7 @@ export const ENTRY_WRITERS_PERMITTED: readonly { readonly path: string; readonly
     why: "seeds an entry carrying a counter label that matches no counters row, to prove counter_id is left NULL rather than invented. This write CANNOT go through the governed write: callNext resolves counter_id from the label, which is exactly the behaviour the test exists to bypass.",
   },
   { path: "scripts/b6-console-proof.ts", why: "fixture teardown as hms_ddl" },
+  { path: "scripts/p2-auth-proof.ts", why: "fixture teardown as hms_ddl; every authorization probe is driven over HTTP through the gated routes" },
   { path: "scripts/c1-service-record-proof.ts", why: "fixture teardown as hms_ddl; the lifecycle itself is driven through named operations, never by writing the timestamps directly" },
   { path: "scripts/c2-survey-proof.ts", why: "fixture teardown as hms_ddl" },
   { path: "scripts/c3-wait-time-proof.ts", why: "fixture teardown as hms_ddl" },

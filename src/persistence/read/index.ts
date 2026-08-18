@@ -63,12 +63,13 @@ export type QueueRow = {
   readonly left_reason: string | null;
   readonly counter: string | null;
   readonly contact: string | null;
+  readonly name: string | null;
 };
 
 export async function readQueue(locationId: string): Promise<readonly QueueRow[]> {
   const result = await readPool().query<QueueRow>(
     `SELECT id, status, channel, joined_at, confirmed_at, undeliverable_at,
-            prompt_delivered_at, left_reason, counter, contact
+            prompt_delivered_at, left_reason, counter, contact, name
        FROM entries
       WHERE location_id = $1
         AND status IN ('provisional', 'waiting', 'called', 'serving')
@@ -230,6 +231,7 @@ export async function readServiceHistory(
 export type ContactEntry = {
   readonly id: string;
   readonly status: string;
+  readonly name: string | null;
 };
 
 export async function readEntryByContact(
@@ -237,7 +239,7 @@ export async function readEntryByContact(
   contact: string,
 ): Promise<ContactEntry | undefined> {
   const result = await readPool().query<ContactEntry>(
-    `SELECT id, status
+    `SELECT id, status, name
        FROM entries
       WHERE location_id = $1
         AND contact = $2

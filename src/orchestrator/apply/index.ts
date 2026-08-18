@@ -253,6 +253,9 @@ export async function joinQueue(input: {
   readonly channel: Channel;
   readonly actor?: string | null;
   readonly contact?: string | null;
+  // FE-001. The guest's name, captured at reception or asked for over
+  // WhatsApp. Nullable: declining a name is allowed, not an error.
+  readonly name?: string | null;
   // C4. The estimate the customer was given, stored so calibration can compare
   // what we SAID against what happened. Recomputing it later would compare
   // today's model against today's data and always look accurate.
@@ -266,14 +269,15 @@ export async function joinQueue(input: {
     // joined_at is deliberately absent: the server supplies it and hms_rw
     // cannot write it, which is what makes I1 structural rather than polite.
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO entries (location_id, status, channel, contact,
+      `INSERT INTO entries (location_id, status, channel, contact, name,
                             predicted_low_minutes, predicted_high_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [
         input.locationId,
         status,
         input.channel,
         input.contact ?? null,
+        input.name ?? null,
         input.predictedLowMinutes ?? null,
         input.predictedHighMinutes ?? null,
       ],
@@ -920,6 +924,32 @@ export async function recordSurveyResponse(input: {
     // Deliberately NO event write here. See the note above this section.
     return { ok: true, value: { surveyId } };
   });
+}
+
+// ---------------------------------------------------------------------------
+// FE-001. Recording a guest's name after the fact. The WhatsApp flow learns
+// the name one message AFTER the join, so this is an UPDATE, and it is
+// deliberately narrow: name only, only when none is set, never overwriting a
+// name already given. NOT a fairness event: a name changes nobody's place in
+// line, so it writes nothing to `events`, same reasoning as the survey.
+// ---------------------------------------------------------------------------
+export async function recordEntryName(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly name: string;
+}): Promise<Applied<{ readonly entryId: string }>> {
+  const trimmed = input.name.trim().slice(0, 80);
+  if (trimmed === "") return { ok: false, reason: "empty name" };
+  const updated = await writePool().query<{ id: string }>(
+    `UPDATE entries SET name = $3
+      WHERE id = $1 AND location_id = $2 AND name IS NULL
+      RETURNING id`,
+    [input.entryId, input.locationId, trimmed],
+  );
+  if (updated.rows[0] === undefined) {
+    return { ok: false, reason: "entry not found or already named" };
+  }
+  return { ok: true, value: { entryId: input.entryId } };
 }
 
 // ---------------------------------------------------------------------------

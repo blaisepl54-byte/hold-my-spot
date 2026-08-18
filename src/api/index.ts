@@ -22,6 +22,7 @@ import {
   leaveQueue,
   markNoShow,
   estimateWaitFor,
+  recordEntryName,
   recordSurveyResponse,
   removeProvisional,
   sendConfirmationPrompt,
@@ -50,6 +51,9 @@ import { EMPTY_TWIML, normaliseSender, parseInbound, parseSurveyReply } from "..
 import { publicWebhookUrl, validateTwilioSignature } from "../tools/whatsapp/signature.ts";
 import { describeBasis, renderEstimate } from "../agents/wait-time.ts";
 import { readAdherence, readDashboard } from "../persistence/read/dashboard.ts";
+import { readAdminOverview } from "../persistence/read/admin.ts";
+import { authConfigFromEnv, roleAtLeast, verifySessionToken } from "../auth/index.ts";
+import type { Role, Session } from "../auth/index.ts";
 
 // The console runs on the simulated surface, per King B's B5 choice: simulated
 // first, Twilio behind it. This instance is shared so the phone view can read
@@ -76,6 +80,54 @@ function outboundTransport(): Transport {
   }
   return transport;
 }
+
+// =====================================================================
+// P2. The auth gate. ACTIVE WHEN CLERK_ISSUER IS SET, absent otherwise.
+//
+// The posture is stated plainly rather than implied: until the new console
+// ships with Clerk's frontend, production does not set CLERK_ISSUER and these
+// routes remain as open as they were before P2 — setting the variable is the
+// act that turns enforcement on, and it is King B's, not a deploy side
+// effect. Once set, EVERY staff route refuses an unauthenticated request with
+// 401 and an under-ranked role with 403, on the server, from the signature.
+//
+// Customer surfaces are NEVER behind this: survey, survey-status and the
+// Twilio webhook stay entry-scoped, because a person holding a place in line
+// is never asked to create an account.
+// =====================================================================
+type Authed = express.Request & { session?: Session };
+
+function requireRole(required: Role): express.RequestHandler {
+  return (req: Authed, res, next) => {
+    const config = authConfigFromEnv(process.env);
+    if (config === undefined) {
+      next();
+      return;
+    }
+    const header = req.get("Authorization") ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+    if (token === "") {
+      res.status(401).json({ ok: false, reason: "authentication required" });
+      return;
+    }
+    void verifySessionToken(token, config).then((result) => {
+      if (!result.ok) {
+        res.status(401).json({ ok: false, reason: "authentication required" });
+        return;
+      }
+      if (!roleAtLeast(result.session.role, required)) {
+        res.status(403).json({ ok: false, reason: `requires ${required}` });
+        return;
+      }
+      req.session = result.session;
+      next();
+    });
+  };
+}
+
+const desk = requireRole("desk");
+const manager = requireRole("manager");
+const admin = requireRole("admin");
 
 function isChannel(value: unknown): value is Channel {
   return value === "whatsapp" || value === "qr" || value === "reception";
@@ -146,7 +198,7 @@ export function createApp(): express.Express {
     });
   });
 
-  app.get("/api/locations", async (_req, res) => {
+  app.get("/api/locations", desk, async (_req, res) => {
     res.json({ ok: true, value: await readLocations() });
   });
 
@@ -154,7 +206,7 @@ export function createApp(): express.Express {
   // by fetching at different moments.
   // C0. Counters and service types are DATA the console reads, not a hardcoded
   // array it ships. A counter typed into a form cannot be measured against.
-  app.get("/api/counters", async (req, res) => {
+  app.get("/api/counters", desk, async (req, res) => {
     const locationId = String(req.query["locationId"] ?? "");
     if (locationId === "") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -163,7 +215,7 @@ export function createApp(): express.Express {
     res.json({ ok: true, value: await readCounters(locationId) });
   });
 
-  app.get("/api/service-types", async (req, res) => {
+  app.get("/api/service-types", desk, async (req, res) => {
     const locationId = String(req.query["locationId"] ?? "");
     if (locationId === "") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -185,7 +237,7 @@ export function createApp(): express.Express {
   // HTML: per the order this is "the single decision that makes Phase 5 a deploy
   // rather than a rewrite", because a client of an API only changes its base
   // URL while a server-rendered page has to be rebuilt to sit on Netlify.
-  app.get("/api/dashboard", async (req, res) => {
+  app.get("/api/dashboard", manager, async (req, res) => {
     const locationId = String(req.query["locationId"] ?? "");
     if (locationId === "") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -201,7 +253,7 @@ export function createApp(): express.Express {
   // C5. Adherence, read-only. REPORTS, DOES NOT ACT: this endpoint returns
   // figures and findings and offers no action, no routing proposal and no
   // ranking. The posture travels in the payload's own notes.
-  app.get("/api/adherence", async (req, res) => {
+  app.get("/api/adherence", manager, async (req, res) => {
     const locationId = String(req.query["locationId"] ?? "");
     if (locationId === "") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -214,7 +266,7 @@ export function createApp(): express.Express {
     res.json({ ok: true, value: await readAdherence(locationId, windowDays) });
   });
 
-  app.get("/api/board", async (req, res) => {
+  app.get("/api/board", desk, async (req, res) => {
     const locationId = String(req.query["locationId"] ?? "");
     if (locationId === "") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -249,13 +301,13 @@ export function createApp(): express.Express {
 
   // The customer's phone view: the messages the simulated surface holds for
   // one entry. This is what makes the phone side real rather than a mock.
-  app.get("/api/inbox", (req, res) => {
+  app.get("/api/inbox", desk, (req, res) => {
     const entryId = String(req.query["entryId"] ?? "");
     res.json({ ok: true, value: transport.inbox(entryId === "" ? undefined : entryId) });
   });
 
-  app.post("/api/join", async (req, res) => {
-    const body = req.body as { locationId?: string; channel?: string; contact?: string };
+  app.post("/api/join", desk, async (req, res) => {
+    const body = req.body as { locationId?: string; channel?: string; contact?: string; name?: string };
     if (typeof body.locationId !== "string" || !isChannel(body.channel)) {
       res.status(400).json({ ok: false, reason: "locationId and a valid channel are required" });
       return;
@@ -270,6 +322,9 @@ export function createApp(): express.Express {
       locationId: body.locationId,
       channel: body.channel,
       contact: body.contact ?? null,
+      // FE-001. Reception captures the name at the desk. Trimmed and bounded
+      // in the orchestrator's insert path identically to recordEntryName.
+      name: typeof body.name === "string" && body.name.trim() !== "" ? body.name.trim().slice(0, 80) : null,
       actor: body.channel === "whatsapp" ? "customer" : "reception",
       predictedLowMinutes: atJoin.kind === "estimate" ? atJoin.lowMinutes : null,
       predictedHighMinutes: atJoin.kind === "estimate" ? atJoin.highMinutes : null,
@@ -295,7 +350,7 @@ export function createApp(): express.Express {
     send(res, result);
   });
 
-  app.post("/api/call-next", async (req, res) => {
+  app.post("/api/call-next", desk, async (req, res) => {
     const body = req.body as { locationId?: string; counter?: string; actor?: string };
     if (typeof body.locationId !== "string") {
       res.status(400).json({ ok: false, reason: "locationId is required" });
@@ -305,10 +360,45 @@ export function createApp(): express.Express {
       res,
       await callNext({
         locationId: body.locationId,
-        actor: body.actor ?? "operator",
+        actor: (req as Authed).session?.userId ?? body.actor ?? "operator",
         counter: body.counter ?? null,
       }),
     );
+  });
+
+  // P2. The out-of-order override, I7's named approver. MANAGER-GATED, and the
+  // approver written to the fairness log is the AUTHENTICATED identity when
+  // auth is on — "the record of who authorised serving someone out of turn
+  // stops being self declared", which the order names as the single largest
+  // guarantee improvement in Phase 5. Pre-Clerk (issuer unset), the
+  // client-supplied string is accepted as today's R13 convention: recorded,
+  // not authenticated. The precedence makes the upgrade automatic the moment
+  // enforcement turns on, with no route change.
+  app.post("/api/call-entry", manager, async (req, res) => {
+    const body = req.body as { locationId?: string; entryId?: string; counter?: string; approver?: string };
+    if (typeof body.locationId !== "string" || typeof body.entryId !== "string") {
+      res.status(400).json({ ok: false, reason: "locationId and entryId are required" });
+      return;
+    }
+    const session = (req as Authed).session;
+    send(
+      res,
+      await callNext({
+        locationId: body.locationId,
+        actor: session?.userId ?? "operator",
+        approver: session?.userId ?? body.approver ?? null,
+        outOfOrderEntryId: body.entryId,
+        counter: body.counter ?? null,
+      }),
+    );
+  });
+
+  // P2/FE-001. The admin's cross-branch overview. ADMIN-GATED: it is the one
+  // read that crosses branch boundaries. R-F holds here exactly as on the
+  // dashboard: keyed on branch and counter, no employee named, nothing ranked
+  // by person.
+  app.get("/api/admin/overview", admin, async (_req, res) => {
+    res.json({ ok: true, value: await readAdminOverview() });
   });
 
   // Entry-scoped verbs. Each names one operation; none of them decides anything.
@@ -342,7 +432,7 @@ export function createApp(): express.Express {
   };
 
   for (const [verb, run] of Object.entries(entryRoutes)) {
-    app.post(`/api/${verb}`, async (req, res) => {
+    app.post(`/api/${verb}`, desk, async (req, res) => {
       const body = req.body as { entryId?: string; locationId?: string; actor?: string };
       if (typeof body.entryId !== "string" || typeof body.locationId !== "string") {
         res.status(400).json({ ok: false, reason: "entryId and locationId are required" });
@@ -515,7 +605,8 @@ export function createApp(): express.Express {
         // point value, and it owns both wordings so this caller cannot soften
         // one into the other.
         reply = joined.ok
-          ? `You are in the queue. Reply YES to confirm and hold your place. ${renderEstimate(atJoin)}`
+          ? `You are in the queue. Reply YES to confirm and hold your place, ` +
+            `and reply with your name so the teller can greet you. ${renderEstimate(atJoin)}`
           : "We could not add you to the queue just now. Please ask at reception.";
       } else if (intent.kind === "affirmative" && existing?.status === "provisional") {
         const confirmed = await confirmEntry({ entryId: existing.id, locationId, actor: "customer" });
@@ -532,6 +623,25 @@ export function createApp(): express.Express {
         reply = left.ok
           ? "You have left the queue. Message JOIN if you would like a new place in line."
           : "We could not remove you just now. Please ask at reception.";
+      } else if (
+        intent.kind === "unknown" &&
+        existing !== undefined &&
+        existing.name === null &&
+        holdsAPlace
+      ) {
+        // FE-001. The name capture. THE PRECEDENCE IS THE SAFETY: every
+        // recognised intent is handled ABOVE this branch, so "yes", "leave"
+        // and "join" can never be recorded as someone's name. Only free text
+        // from a customer who holds a place and has no name lands here, which
+        // is exactly the reply the join prompt asked for.
+        const named = await recordEntryName({
+          entryId: existing.id,
+          locationId,
+          name: intent.text,
+        });
+        reply = named.ok
+          ? "Thank you. Reply YES to confirm and hold your place."
+          : "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";
       } else {
         reply = "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";
       }
@@ -552,7 +662,9 @@ export function createApp(): express.Express {
     res.status(200).type("text/xml").send(EMPTY_TWIML);
   });
 
-  app.post("/api/close-of-day", async (req, res) => {
+  // RULED by King B 2026-08-18: close-of-day is MANAGER-ONLY. Releasing the
+  // entire queue is a materially larger act than any desk-level operation.
+  app.post("/api/close-of-day", manager, async (req, res) => {
     const body = req.body as { locationId?: string; actor?: string };
     if (typeof body.locationId !== "string") {
       res.status(400).json({ ok: false, reason: "locationId is required" });

@@ -8,7 +8,7 @@
 # belong in it.
 
 [build]
-  command = "node scripts/build-console.mjs"
+  command = "node scripts/build-console.mjs && node scripts/p2-secret-split.mjs"
   publish = "web/dist"
 
 [build.environment]

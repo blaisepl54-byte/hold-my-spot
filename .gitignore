@@ -33,3 +33,6 @@ Thumbs.db
 .idea/
 .vscode/
 web/dist
+
+# Local Netlify folder
+.netlify

@@ -1,0 +1,2337 @@
+<!doctype html>
+<html lang="en-JM" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hold My Spot — Staff Console</title>
+<script src="env.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   HOLD MY SPOT — STAFF CONSOLE
+   HMS-FE-001 design render · Igris · 2026-08-18
+   Direction: Civic Ledger (structure) + Warm Caribbean Editorial (warmth)
+   ========================================================================== */
+
+/* ---------- TOKENS ------------------------------------------------------- */
+:root{
+  /* Ground. Two grounds on purpose: warm manila CHROME identifies the place,
+     cool warm-white FIELD carries dense data. The split is functional. */
+  --manila:      #EAE1CE;   /* chrome / frame / branch plate                 */
+  --manila-deep: #DED2B9;   /* chrome pressed + rules inside chrome          */
+  --field:       #FBF9F3;   /* working surface — queue, tables, forms        */
+  --field-sunk:  #F3EFE4;   /* inset wells, table headers, disabled          */
+
+  /* Ink. Warm-black, never #000 — this is printed-ledger ink.               */
+  --ink:         #191509;
+  --ink-2:       #322C1B;   /* body ink on manila                            */
+  --slate:       #57503F;   /* secondary text, warm gray-brown               */
+  --slate-soft:  #696251;   /* tertiary / captions (>=4.6:1 on BOTH grounds) */
+  --hair:        #CFC5AC;   /* hairline rule on chrome                       */
+  --hair-field:  #E3DCCB;   /* hairline rule on field                        */
+
+  /* Meaning. Three colours, each with exactly one job. No decorative use.   */
+  --green:       #0B4B33;   /* the institution + IN SERVICE + primary action */
+  --green-lift:  #106645;
+  --green-wash:  #E4EEE7;
+  --ochre:       #8B530B;   /* HUMAN JUDGMENT: stepped over, override, provisional */
+  --ochre-wash:  #F7EDD9;
+  --claret:      #8A2A20;   /* REFUSAL: 409, no-show, degraded               */
+  --claret-wash: #F6E4E0;
+
+  /* text/lines drawn IN a meaning colour, split from the fills so a theme
+     swap can lift one without wrecking the other */
+  --on-green:    #F7F3E8;   /* text sitting on a green fill                  */
+  --ochre-text:  #6B4308;   /* ochre used as TEXT                            */
+  --ochre-line:  #E3C68C;   /* ochre used as a BORDER                        */
+  --ochre-hover: #F2E2C4;
+  --oo-text:     #6B4308;   /* out-of-order: reachable, never inviting        */
+  --claret-text: #5E1C15;
+  --claret-line: #D9A9A2;
+  --rail-op:     .24;       /* the spine, against its ground                 */
+  --skel-hi:     #EEE9DC;
+  --hover:       #F3EFE4;   /* hover always lifts off the ground it sits on  */
+  --chrome-hover:#DED2B9;
+  --grain-a:     rgba(25,21,9,.018);
+  --grain-b:     rgba(25,21,9,.014);
+  --scrim:       rgba(25,21,9,.42);
+  --spec-bg:     #EDF2F6;
+  --spec-ink:    #2B4459;
+  --spec-line:   #4E6E8E;
+  --spec-dash:   #A8B6C4;
+  --spec-code:   #DDE7EF;
+
+  /* Type */
+  --display: "Fraunces", "Hoefler Text", Georgia, serif;
+  --ui: "Public Sans", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --t-plate:  clamp(1.55rem, 1.1rem + 1.5vw, 2.35rem);
+  --t-screen: clamp(1.1rem, 0.95rem + 0.5vw, 1.35rem);
+  --t-figure: clamp(1.7rem, 1.2rem + 1.6vw, 2.6rem);
+  --t-body:   0.9375rem;
+  --t-dense:  0.875rem;
+  --t-label:  0.6875rem;
+
+  /* Rhythm — deliberately uneven. Chrome is tight, the line breathes. */
+  --gut: 28px;              /* the spine gutter */
+  --pad-chrome: 14px;
+  --pad-field: 20px;
+
+  --r-sm: 2px;  --r-md: 3px;  /* near-square. This is a ledger, not a card UI */
+
+  --dur: 180ms;
+  --ease: cubic-bezier(.2,.7,.3,1);
+
+  --shadow-lift: 0 1px 0 rgba(25,21,9,.06), 0 8px 24px -14px rgba(25,21,9,.45);
+  --focus: 0 0 0 2px var(--field), 0 0 0 4px var(--green);
+}
+/* ==========================================================================
+   DARK PALETTE
+   Not a generic slate-gray dark mode. The light system is manila and ledger
+   ink; the dark one is the same room after hours — tobacco, oiled wood, bone
+   paper. Every hue keeps its warm cast, so the two themes read as one product
+   at two times of day rather than as two products.
+   ========================================================================== */
+:root[data-theme="dark"]{
+  --manila:      #16120B;   /* chrome: the deepest surface, names the place  */
+  --manila-deep: #0F0C06;
+  --chrome-hover:#2A2416;
+  --field:       #262117;   /* working surface, lifted off the chrome        */
+  --field-sunk:  #1C180F;   /* recessed: table heads, wells                  */
+  --hover:       #2F2819;
+
+  --ink:         #EFE7D4;   /* bone, never pure white                        */
+  --ink-2:       #D6CCB4;
+  --slate:       #ABA089;
+  --slate-soft:  #948A72;
+  --hair:        #3A3222;
+  --hair-field:  #3C3524;
+
+  --green:       #4FBC8C;   /* lifted so it reads as text AND as a fill      */
+  --green-lift:  #63CE9E;
+  --green-wash:  #133220;
+  --on-green:    #08170F;   /* dark ink on the green fill, not bone          */
+
+  --ochre:       #D9A24A;
+  --ochre-text:  #E8B96F;
+  --ochre-line:  #6E5628;
+  --ochre-wash:  #2D2312;
+  --ochre-hover: #3A2C16;
+  --oo-text:     #A98455;
+
+  --claret:      #E0857A;
+  --claret-text: #EFA79A;
+  --claret-line: #6E3A32;
+  --claret-wash: #30201C;
+
+  --rail-op:     .46;
+  --skel-hi:     #2E2A1E;
+  --grain-a:     rgba(255,246,224,.017);
+  --grain-b:     rgba(255,246,224,.013);
+  --scrim:       rgba(6,4,0,.68);
+  --shadow-lift: 0 1px 0 rgba(0,0,0,.34), 0 16px 38px -18px rgba(0,0,0,.85);
+
+  --spec-bg:     #16212A;
+  --spec-ink:    #A9C6DC;
+  --spec-line:   #3E6A8C;
+  --spec-dash:   #35505F;
+  --spec-code:   #21323F;
+}
+/* the caret cannot take a variable through a data URI, so it is swapped whole */
+:root[data-theme="dark"] .select{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23ABA089' stroke-width='1.6'/></svg>");
+}
+/* the degraded band has to out-shout a dark page, not blend into it */
+:root[data-theme="dark"] .degraded{ background:#412F11; color:#F8EAC9; border-bottom-color:#6E5527; }
+/* and the review bar has to stay clearly not-the-product */
+:root[data-theme="dark"] .inspector{ background:#0D0B05; }
+:root[data-theme="dark"] .modal{ border-color:var(--hair); }
+
+*,*::before,*::after{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:var(--manila);
+  color:var(--ink);
+  font-family:var(--ui);
+  font-size:var(--t-body);
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric: tabular-nums lining-nums;
+  /* paper grain — 2% opacity, the only texture in the system */
+  background-image:
+    repeating-linear-gradient(0deg, var(--grain-a) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, var(--grain-b) 0 1px, transparent 1px 4px);
+}
+button,input,select,textarea{ font:inherit; color:inherit; }
+button{ background:none; border:0; cursor:pointer; }
+:focus-visible{ outline:none; box-shadow:var(--focus); border-radius:var(--r-sm); }
+h1,h2,h3,h4,p{ margin:0; }
+ul,ol{ margin:0; padding:0; list-style:none; }
+table{ border-collapse:collapse; width:100%; }
+
+/* ---------- TYPE ROLES --------------------------------------------------- */
+.plate-name{
+  font-family:var(--display);
+  font-optical-sizing:auto;
+  font-variation-settings:"SOFT" 20,"WONK" 1;
+  font-size:var(--t-plate); font-weight:600; line-height:1.02;
+  letter-spacing:-.014em;
+}
+.screen-title{
+  font-family:var(--display); font-size:var(--t-screen); font-weight:600;
+  letter-spacing:-.01em; line-height:1.15;
+}
+.figure{
+  font-family:var(--display); font-size:var(--t-figure); font-weight:600;
+  line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums lining-nums;
+}
+.label{
+  font-size:var(--t-label); font-weight:700; text-transform:uppercase;
+  letter-spacing:.11em; color:var(--slate);
+}
+.label-quiet{ font-size:var(--t-label); font-weight:600; text-transform:uppercase;
+  letter-spacing:.11em; color:var(--slate-soft); }
+.dense{ font-size:var(--t-dense); }
+.muted{ color:var(--slate); }
+.soft{ color:var(--slate-soft); }
+.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+</style>
+<style>
+/* ==========================================================================
+   CHROME — the branch is the anchor (R3). It is a fixed nameplate, never a
+   dropdown. It does not scroll. It is the widest, warmest thing on screen.
+   ========================================================================== */
+.app{ display:flex; flex-direction:column; min-height:100vh; }
+
+.plate{
+  background:var(--manila);
+  border-bottom:1px solid var(--hair);
+  position:relative; z-index:60;
+}
+.plate-inner{
+  display:flex; align-items:flex-end; gap:24px; flex-wrap:wrap;
+  padding:16px var(--pad-field) 0;
+  max-width:1680px; margin:0 auto; width:100%;
+}
+.plate-id{ flex:1 1 340px; min-width:0; }
+.plate-eyebrow{
+  display:flex; align-items:center; gap:10px; margin-bottom:5px;
+}
+.mark{
+  width:19px; height:19px; flex:none; display:block;
+}
+.mark .mk-g{ stroke:var(--green); fill:none; }
+.mark .mk-gf{ fill:var(--green); }
+.mark .mk-o{ stroke:var(--ochre); }
+.plate-org{ font-size:var(--t-label); font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--green); }
+.plate-meta{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin-top:7px; font-size:var(--t-dense); color:var(--slate);
+}
+.plate-meta .dot{ width:3px; height:3px; border-radius:50%; background:var(--hair);
+  flex:none; }
+.branch-state{
+  display:inline-flex; align-items:center; gap:6px; font-weight:600;
+  color:var(--green);
+}
+.branch-state::before{
+  content:""; width:7px; height:7px; border-radius:50%; background:var(--green);
+  box-shadow:0 0 0 3px var(--green-wash);
+}
+.branch-state.is-closed{ color:var(--claret); }
+.branch-state.is-closed::before{ background:var(--claret); box-shadow:0 0 0 3px var(--claret-wash); }
+.clock{ font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; }
+
+.plate-side{ display:flex; align-items:center; gap:10px; padding-bottom:2px; }
+.whoami{ text-align:right; line-height:1.3; }
+.whoami .n{ font-weight:600; font-size:var(--t-dense); }
+.avatar{
+  width:34px; height:34px; border-radius:50%; flex:none;
+  background:var(--green); color:var(--on-green); display:grid; place-items:center;
+  font-size:12px; font-weight:700; letter-spacing:.04em;
+}
+
+/* Role tabs — they sit ON the plate, tabbed like a ledger index. */
+.roles{ display:flex; gap:2px; padding:12px var(--pad-field) 0;
+  max-width:1680px; margin:0 auto; width:100%; overflow-x:auto;
+  scrollbar-width:none; }
+.roles::-webkit-scrollbar{ display:none; }
+.role-tab{
+  position:relative; display:flex; flex-direction:column; gap:1px;
+  padding:8px 16px 9px; border:1px solid transparent; border-bottom:0;
+  border-radius:var(--r-md) var(--r-md) 0 0; color:var(--slate);
+  white-space:nowrap; transition:background var(--dur) var(--ease), color var(--dur) var(--ease);
+  min-height:44px;
+}
+.role-tab .rt-name{ font-size:var(--t-dense); font-weight:600; letter-spacing:.005em; }
+.role-tab .rt-sub{ font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  font-weight:600; color:var(--slate-soft); }
+.role-tab:hover{ background:var(--chrome-hover); color:var(--ink); }
+.role-tab[aria-selected="true"]{
+  background:var(--field); border-color:var(--hair); color:var(--ink);
+  box-shadow:0 -1px 0 var(--green) inset, 0 3px 0 var(--green);
+}
+.role-tab[aria-selected="true"]::after{
+  content:""; position:absolute; left:0; right:0; top:0; height:3px;
+  background:var(--green); border-radius:var(--r-md) var(--r-md) 0 0;
+}
+.role-tab[aria-selected="true"] .rt-sub{ color:var(--green); }
+.role-tab[disabled]{ opacity:.4; cursor:not-allowed; }
+
+/* Sub-navigation within a role */
+.subnav{
+  background:var(--field); border-bottom:1px solid var(--hair-field);
+  position:sticky; top:0; z-index:50;
+  transition:box-shadow var(--dur) var(--ease);
+}
+body.scrolled .subnav{ box-shadow:0 6px 18px -14px rgba(25,21,9,.55); }
+.subnav-wrap{
+  display:flex; align-items:stretch; padding:0 var(--pad-field);
+  max-width:1680px; margin:0 auto; width:100%;
+}
+/* the branch never leaves the screen: when the plate scrolls off, its name
+   takes a seat in the section bar. It is a label, not a control. */
+.branch-chip{
+  display:none; align-items:center; gap:9px; flex:none; white-space:nowrap;
+  padding-right:15px; margin-right:13px; border-right:1px solid var(--hair-field);
+  font-size:var(--t-dense); font-weight:700;
+}
+.branch-chip .bc-dot{ width:7px; height:7px; border-radius:50%;
+  background:var(--green); box-shadow:0 0 0 3px var(--green-wash); flex:none; }
+.branch-chip.is-closed .bc-dot{ background:var(--claret); box-shadow:0 0 0 3px var(--claret-wash); }
+body.scrolled .branch-chip{ display:flex; }
+.subnav-inner{
+  display:flex; gap:2px; min-width:0; flex:1;
+  overflow-x:auto; scrollbar-width:none;
+}
+.subnav-inner::-webkit-scrollbar{ display:none; }
+.sub-tab{
+  padding:11px 14px; font-size:var(--t-dense); font-weight:500; color:var(--slate);
+  border-bottom:2px solid transparent; white-space:nowrap; min-height:44px;
+  transition:color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.sub-tab:hover{ color:var(--ink); }
+.sub-tab[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--ink);
+  font-weight:600; }
+.sub-tab .badge{
+  display:inline-block; margin-left:7px; padding:1px 6px; border-radius:9px;
+  background:var(--ochre); color:#FFF9EE; font-size:10px; font-weight:700;
+  vertical-align:1px;
+}
+
+/* ==========================================================================
+   COUNTER STRIP — counters are first-class (R5). Always visible, always
+   showing who each one is serving. Labels are DATA.
+   ========================================================================== */
+.counters{
+  background:var(--manila); border-bottom:1px solid var(--hair);
+  padding:12px var(--pad-field) 13px;
+}
+.counters-inner{ max-width:1680px; margin:0 auto; }
+.counters-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:9px; }
+.counter-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+  gap:9px; }
+.counter{
+  background:var(--field); border:1px solid var(--hair);
+  border-left:3px solid var(--hair); border-radius:var(--r-md);
+  padding:11px 13px; display:flex; flex-direction:column; gap:2px;
+  min-height:88px; position:relative; overflow:hidden;
+  transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.counter-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.counter-label{ font-size:var(--t-dense); font-weight:700; letter-spacing:.02em; }
+.counter-state{ font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--slate-soft); }
+.counter-serving{ font-family:var(--display); font-size:1.05rem; font-weight:600;
+  line-height:1.2; margin-top:3px; }
+.counter-sub{ font-size:var(--t-dense); color:var(--slate); }
+.counter.is-serving{ border-left-color:var(--green); background:var(--field); }
+.counter.is-serving .counter-state{ color:var(--green); }
+.counter.is-called{ border-left-color:var(--ochre); }
+.counter.is-called .counter-state{ color:var(--ochre); }
+.counter.is-open{ border-left-color:var(--hair); }
+.counter.is-closed{ background:var(--field-sunk); border-left-color:var(--hair);
+  opacity:.72; }
+.counter .cta{ margin-top:auto; padding-top:8px; }
+</style>
+<style>
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
+.work{ flex:1; background:var(--field); }
+.work-inner{
+  max-width:1680px; margin:0 auto; width:100%;
+  display:grid; grid-template-columns:minmax(0,1fr) 344px;
+  align-items:start;
+}
+body.no-rail .work-inner{ grid-template-columns:minmax(0,1fr); }
+.main-col{ min-width:0; padding:var(--pad-field) var(--pad-field) 72px; }
+.rail-col{
+  border-left:1px solid var(--hair-field); background:var(--field);
+  padding:var(--pad-field) var(--pad-field) 72px;
+  position:sticky; top:44px; align-self:start; max-height:calc(100vh - 44px);
+  overflow-y:auto;
+}
+.section-head{
+  display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+  flex-wrap:wrap; padding-bottom:11px; margin-bottom:14px;
+  border-bottom:1px solid var(--hair-field);
+}
+.section-head .sh-l{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.section-note{ font-size:var(--t-dense); color:var(--slate); max-width:58ch; }
+.stack{ display:flex; flex-direction:column; gap:18px; }
+
+/* ==========================================================================
+   THE LINE — the signature element.
+   One continuous spine runs the length of the queue. Every entry is a node on
+   it, in join order (I1). When call-next passes someone, the SPINE ITSELF
+   swerves around them and the node is left detached (I8). Being stepped over
+   is drawn as a deviation in the line of service, not as a badge that staff
+   learn to stop seeing.
+   ========================================================================== */
+.line{ position:relative; }
+.entry{
+  position:relative; display:grid;
+  grid-template-columns:var(--gut) 88px minmax(0,1fr) auto;
+  gap:0 16px; align-items:start;
+  padding:13px 12px 13px 0; border-bottom:1px solid var(--hair-field);
+  transition:background var(--dur) var(--ease);
+}
+.entry:hover{ background:var(--hover); }
+/* the review bar is fixed; keep scrolled-to rows clear of it */
+.entry,.counter,.panel{ scroll-margin-bottom:80px; scroll-margin-top:60px; }
+.entry:first-child .rail-seg{ top:28px; }
+.entry:last-child .rail-seg{ bottom:calc(100% - 28px); }
+
+.rail{ position:relative; grid-column:1; align-self:stretch; min-height:50px; }
+.rail-seg{
+  position:absolute; left:13px; top:-14px; bottom:-14px; width:2px;
+  background:var(--ink); opacity:var(--rail-op);
+}
+.node{
+  position:absolute; left:9px; top:23px; width:10px; height:10px;
+  border-radius:50%; background:var(--field); border:2px solid var(--ink);
+  opacity:.5; z-index:2;
+  transition:background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+             transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.entry.st-called .node,
+.entry.st-serving .node{ background:var(--green); border-color:var(--green);
+  opacity:1; transform:scale(1.3); }
+.entry.st-provisional .node{ border-style:dashed; border-color:var(--ochre); opacity:.95; }
+.entry.st-served .node,
+.entry.st-noshow .node,
+.entry.st-left .node{ opacity:.26; transform:scale(.7); }
+
+.detour{ position:absolute; left:0; top:-14px; width:var(--gut);
+  height:calc(100% + 28px); }
+.entry.is-stepped .rail{ grid-row:1 / span 2; }
+.detour path{ fill:none; stroke:var(--ochre); stroke-width:2; opacity:.9; }
+.entry.is-stepped .rail-seg{ display:none; }
+.entry.is-stepped .node{ border-color:var(--ochre); background:var(--field);
+  opacity:1; box-shadow:0 0 0 3px var(--ochre-wash); }
+@media (prefers-reduced-motion:no-preference){
+  .detour path{ stroke-dasharray:260; stroke-dashoffset:260;
+    animation:drawDetour 560ms var(--ease) forwards; }
+}
+@keyframes drawDetour{ to{ stroke-dashoffset:0; } }
+
+.ticket{ grid-column:2; padding-top:1px; }
+.ticket-no{ font-size:1.02rem; font-weight:700; letter-spacing:.02em; line-height:1.12; }
+.ticket-time{ font-size:var(--t-label); color:var(--slate-soft); font-weight:600;
+  letter-spacing:.05em; margin-top:2px; }
+
+.who{ grid-column:3; min-width:0; }
+.who-name{ font-family:var(--display); font-size:1.05rem; font-weight:600;
+  line-height:1.25; letter-spacing:-.005em; }
+.who-name .unnamed{ font-family:var(--ui); font-size:.875rem; font-style:italic;
+  color:var(--slate-soft); font-weight:400; letter-spacing:0; }
+.who-line{ display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin-top:4px; font-size:var(--t-dense); color:var(--slate); }
+.who-line .sep{ width:3px; height:3px; border-radius:50%; background:var(--hair); flex:none; }
+.chan{ display:inline-flex; align-items:center; gap:5px; font-weight:500; }
+.chan svg{ width:13px; height:13px; flex:none; opacity:.7; }
+
+.pill{
+  display:inline-flex; align-items:center; gap:6px; padding:2px 8px;
+  border-radius:2px; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.09em; border:1px solid; line-height:1.5;
+}
+.pill-waiting{ color:var(--slate); border-color:var(--hair); background:var(--field-sunk); }
+.pill-provisional{ color:var(--ochre); border-color:var(--ochre-line); background:var(--ochre-wash); }
+.pill-called{ color:var(--ochre); border-color:var(--ochre); background:var(--ochre-wash); }
+.pill-serving{ color:var(--green); border-color:var(--green); background:var(--green-wash); }
+.pill-served{ color:var(--slate-soft); border-color:var(--hair-field); background:transparent; }
+.pill-noshow,.pill-left{ color:var(--claret); border-color:var(--claret-line); background:var(--claret-wash); }
+
+.stepped-note{
+  grid-column:2 / -1; margin-top:10px; padding:9px 12px;
+  background:var(--ochre-wash); border-left:2px solid var(--ochre);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;
+  font-size:var(--t-dense); color:var(--ochre-text); max-width:74ch;
+}
+.stepped-note b{ font-weight:700; text-transform:uppercase; font-size:10px;
+  letter-spacing:.1em; display:block; margin-bottom:3px; }
+.stepped-note .fix{ margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+
+.acts{ grid-column:4; display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+  justify-content:flex-end; padding-top:1px; }
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  min-height:36px; padding:0 13px; border-radius:var(--r-md);
+  border:1px solid var(--hair); background:var(--field);
+  font-size:var(--t-dense); font-weight:600;
+  color:var(--ink); white-space:nowrap;
+  transition:background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+             color var(--dur) var(--ease), transform 90ms var(--ease);
+}
+.btn:hover{ background:var(--hover); border-color:var(--slate-soft); }
+.btn:active{ transform:translateY(1px); }
+.btn[disabled]{ opacity:.42; cursor:not-allowed; pointer-events:none; }
+.btn-primary{ background:var(--green); border-color:var(--green); color:var(--on-green); }
+.btn-primary:hover{ background:var(--green-lift); border-color:var(--green-lift); }
+.btn-danger{ color:var(--claret); border-color:var(--claret-line); }
+.btn-danger:hover{ background:var(--claret-wash); border-color:var(--claret); }
+.btn-ochre{ color:var(--ochre-text); border-color:var(--ochre-line); background:var(--ochre-wash); }
+.btn-ochre:hover{ background:var(--ochre-hover); border-color:var(--ochre); }
+.btn-lg{ min-height:46px; padding:0 20px; font-size:.95rem; }
+.btn-sm{ min-height:30px; padding:0 9px; font-size:.8125rem; }
+.btn-ghost{ border-color:transparent; background:transparent; color:var(--slate); }
+.btn-ghost:hover{ background:var(--hover); color:var(--ink); border-color:transparent; }
+/* out-of-order is always reachable and never inviting */
+.btn-oo{ color:var(--oo-text); font-weight:500; }
+.btn-oo:hover{ background:var(--ochre-wash); color:var(--ochre-text); border-color:var(--ochre-line); }
+.btn svg{ width:15px; height:15px; flex:none; }
+@media (pointer:coarse){
+  .btn{ min-height:44px; padding:0 15px; }
+  .btn-sm{ min-height:38px; }
+}
+</style>
+<style>
+/* ==========================================================================
+   PANELS + RAIL
+   ========================================================================== */
+.panel{
+  border:1px solid var(--hair-field); border-radius:var(--r-md);
+  background:var(--field); margin-bottom:18px;
+}
+.panel-head{
+  display:flex; align-items:center; justify-content:space-between; gap:6px 10px;
+  flex-wrap:wrap;
+  padding:10px 13px; border-bottom:1px solid var(--hair-field);
+  background:var(--field-sunk); border-radius:var(--r-md) var(--r-md) 0 0;
+}
+.panel-body{ padding:13px; }
+.panel-body.tight{ padding:0; }
+
+/* ---- THE ESTIMATE (R-G) ------------------------------------------------
+   A range or an honest refusal, rendered as the API sends it. The refusal
+   gets the SAME typographic weight as a number, because it is an answer,
+   not a missing value. There is no dash state and no midpoint. */
+.estimate{
+  border:1px solid var(--hair-field); border-left:3px solid var(--green);
+  border-radius:var(--r-md); background:var(--green-wash); padding:14px 15px;
+  margin-bottom:18px;
+}
+.estimate.is-refused{ border-left-color:var(--slate-soft); background:var(--field-sunk); }
+.estimate-value{
+  font-family:var(--display); font-size:1.28rem; font-weight:600; line-height:1.25;
+  letter-spacing:-.01em; margin-top:5px; color:var(--ink);
+}
+.estimate.is-refused .estimate-value{
+  font-size:1.02rem; font-weight:500; line-height:1.4; color:var(--ink-2);
+  font-variation-settings:"SOFT" 40,"WONK" 1;
+}
+.basis{
+  margin-top:10px; padding-top:9px; border-top:1px dashed var(--hair);
+  font-size:var(--t-dense); color:var(--slate); display:flex; gap:7px;
+}
+.basis .label-quiet{ flex:none; padding-top:1px; }
+
+/* ---- REFUSAL STRIP (409) ------------------------------------------------
+   A refusal is an answer. It appears in place, states what happened and what
+   would work instead, and never blocks the screen with a modal. */
+.refusal{
+  display:flex; gap:11px; align-items:flex-start;
+  border:1px solid var(--claret-line); border-left:3px solid var(--claret);
+  background:var(--claret-wash); border-radius:var(--r-md);
+  padding:11px 13px; margin-bottom:14px; color:var(--claret-text);
+  font-size:var(--t-dense);
+}
+.refusal svg{ width:17px; height:17px; flex:none; margin-top:1px; color:var(--claret); }
+.refusal .r-title{ font-weight:700; margin-bottom:2px; }
+.refusal .r-code{ font-size:10px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; opacity:.65; margin-left:7px; }
+.refusal-close{ margin-left:auto; flex:none; color:var(--claret-text); opacity:.6;
+  width:26px; height:26px; display:grid; place-items:center; border-radius:var(--r-sm); }
+.refusal-close:hover{ opacity:1; background:rgba(138,42,32,.1); }
+@media (prefers-reduced-motion:no-preference){
+  .refusal{ animation:slideIn 200ms var(--ease); }
+}
+@keyframes slideIn{ from{ opacity:0; transform:translateY(-6px); } }
+
+/* ---- DEGRADED BANNER ---------------------------------------------------- */
+.degraded{
+  display:flex; gap:11px; align-items:center; padding:10px 14px;
+  background:#3A2E14; color:#F3E7CC; font-size:var(--t-dense);
+  border-bottom:1px solid #574526;
+}
+.degraded svg{ width:17px; height:17px; flex:none; color:#E0B354; }
+.degraded b{ font-weight:700; }
+.degraded .age{ margin-left:auto; opacity:.75; font-size:var(--t-label);
+  letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+.is-stale{ opacity:.62; }
+
+/* ---- PROVISIONAL NOTE (R-I) --------------------------------------------
+   The disclaimer travels WITH the list. It is inside the same bordered
+   region, above the items, not a footnote elsewhere on the page. */
+.provisional-note{
+  display:flex; gap:9px; align-items:flex-start; padding:9px 12px;
+  background:var(--ochre-wash); border-bottom:1px solid var(--ochre-line);
+  font-size:var(--t-dense); color:var(--ochre-text);
+}
+.provisional-note svg{ width:15px; height:15px; flex:none; margin-top:2px; }
+
+/* ---- FIGURES / STAT ROW ------------------------------------------------- */
+.figures{ display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+  border:1px solid var(--hair-field); border-radius:var(--r-md);
+  overflow:hidden; margin-bottom:18px; background:var(--field); }
+.fig{ padding:13px 15px; border-right:1px solid var(--hair-field); }
+.fig:last-child{ border-right:0; }
+.fig .figure{ margin-top:5px; }
+.fig .fig-sub{ font-size:var(--t-dense); color:var(--slate-soft); margin-top:4px; }
+.fig.accent .figure{ color:var(--green); }
+.fig.warn .figure{ color:var(--ochre); }
+
+/* ---- TABLES ------------------------------------------------------------- */
+.tbl{ font-size:var(--t-dense); }
+.tbl th{
+  text-align:left; font-size:var(--t-label); font-weight:700; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--slate); padding:9px 13px;
+  background:var(--field-sunk); border-bottom:1px solid var(--hair-field);
+  white-space:nowrap;
+}
+.tbl td{ padding:11px 13px; border-bottom:1px solid var(--hair-field); vertical-align:top; }
+.tbl tbody tr:last-child td{ border-bottom:0; }
+.tbl tbody tr:hover{ background:var(--hover); }
+.tbl .num{ text-align:right; font-variant-numeric:tabular-nums; }
+.tbl .strong{ font-weight:600; }
+.tbl .nm{ font-family:var(--display); font-size:.98rem; font-weight:600; }
+
+/* bar inside a table cell — data viz stays inside the type system */
+.bar{ position:relative; height:7px; background:var(--field-sunk);
+  border-radius:1px; overflow:hidden; min-width:70px; margin-top:5px; }
+.bar > i{ position:absolute; inset:0 auto 0 0; background:var(--green);
+  border-radius:1px; display:block; }
+.bar.warn > i{ background:var(--ochre); }
+.bar.bad > i{ background:var(--claret); }
+
+/* ---- FORMS -------------------------------------------------------------- */
+.field{ margin-bottom:14px; }
+.field > label{ display:block; font-size:var(--t-label); font-weight:700;
+  text-transform:uppercase; letter-spacing:.1em; color:var(--slate);
+  margin-bottom:5px; }
+.field .hint{ font-size:var(--t-dense); color:var(--slate-soft); margin-top:5px; }
+.input,.select,.textarea{
+  width:100%; min-height:42px; padding:9px 11px;
+  background:var(--field); border:1px solid var(--hair);
+  border-radius:var(--r-md); font-size:.9375rem; color:var(--ink);
+  transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.input:hover,.select:hover,.textarea:hover{ border-color:var(--slate-soft); }
+.sub-tab:hover{ color:var(--ink); }
+.input:focus,.select:focus,.textarea:focus{ outline:none; border-color:var(--green);
+  box-shadow:0 0 0 3px var(--green-wash); }
+.textarea{ min-height:78px; resize:vertical; line-height:1.5; }
+.select{ appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%236A6252' stroke-width='1.6'/></svg>");
+  background-repeat:no-repeat; background-position:right 11px center;
+  background-size:11px; padding-right:32px; }
+.choice-row{ display:flex; gap:7px; flex-wrap:wrap; }
+.choice{
+  display:inline-flex; align-items:center; gap:8px; padding:9px 13px;
+  border:1px solid var(--hair); border-radius:var(--r-md); background:var(--field);
+  font-size:var(--t-dense); font-weight:500; cursor:pointer; min-height:44px;
+  transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.choice:hover{ border-color:var(--slate-soft); background:var(--hover); }
+.choice input{ accent-color:var(--green); width:16px; height:16px; }
+.choice.is-on{ border-color:var(--green); background:var(--green-wash); font-weight:600; }
+.form-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:0 16px; }
+
+/* ---- EMPTY + LOADING ---------------------------------------------------- */
+.empty{
+  text-align:center; padding:52px 24px; border:1px dashed var(--hair);
+  border-radius:var(--r-md); background:var(--field-sunk);
+}
+.empty .e-mark{ margin:0 auto 16px; opacity:.34; display:block;
+  width:46px; height:46px; }
+.empty h3{ font-family:var(--display); font-size:1.15rem; font-weight:600;
+  margin-bottom:6px; }
+.empty p{ font-size:var(--t-dense); color:var(--slate); max-width:46ch;
+  margin:0 auto 16px; }
+.skel{ background:linear-gradient(90deg,var(--field-sunk) 25%,var(--skel-hi) 37%,var(--field-sunk) 63%);
+  background-size:400% 100%; border-radius:var(--r-sm); height:11px; }
+@media (prefers-reduced-motion:no-preference){
+  .skel{ animation:shimmer 1.4s ease-in-out infinite; }
+}
+@keyframes shimmer{ 0%{ background-position:100% 0; } 100%{ background-position:0 0; } }
+.skel-row{ display:grid; grid-template-columns:var(--gut) 88px minmax(0,1fr) 190px;
+  gap:0 16px; padding:17px 12px 17px 0; border-bottom:1px solid var(--hair-field);
+  align-items:center; }
+</style>
+<style>
+/* ==========================================================================
+   OUT-OF-ORDER OVERRIDE (I7)
+   The only modal in the system. It exists because this action must not be
+   possible to take by muscle memory. The confirm button stays disabled until
+   an approver is named and a reason is given.
+   ========================================================================== */
+.scrim{
+  position:fixed; inset:0; background:var(--scrim);
+  display:grid; place-items:center; padding:24px; z-index:200;
+  backdrop-filter:blur(2px);
+}
+.modal{
+  width:min(560px,100%); background:var(--field); border:1px solid var(--hair);
+  border-radius:var(--r-md); box-shadow:var(--shadow-lift);
+  max-height:calc(100vh - 48px); overflow-y:auto;
+}
+.modal-head{
+  padding:16px 20px 14px; border-bottom:1px solid var(--hair-field);
+  background:var(--ochre-wash); border-radius:var(--r-md) var(--r-md) 0 0;
+}
+.modal-head .screen-title{ color:var(--ochre-text); }
+.modal-body{ padding:18px 20px; }
+.modal-foot{
+  padding:13px 20px; border-top:1px solid var(--hair-field);
+  background:var(--field-sunk); display:flex; gap:9px; justify-content:flex-end;
+  flex-wrap:wrap; border-radius:0 0 var(--r-md) var(--r-md);
+}
+.consequence{
+  padding:11px 13px; background:var(--field-sunk); border:1px solid var(--hair-field);
+  border-radius:var(--r-md); font-size:var(--t-dense); color:var(--ink-2);
+  margin-bottom:16px; line-height:1.5;
+}
+.consequence strong{ font-weight:700; }
+@media (prefers-reduced-motion:no-preference){
+  .modal{ animation:pop 180ms var(--ease); }
+}
+@keyframes pop{ from{ opacity:0; transform:translateY(10px) scale(.985); } }
+
+/* ==========================================================================
+   FAIRNESS LOG — the ledger of what the branch did and why.
+   ========================================================================== */
+.log{ font-size:var(--t-dense); }
+.log li{
+  display:grid; grid-template-columns:52px minmax(0,1fr); gap:11px;
+  padding:9px 0; border-bottom:1px dotted var(--hair);
+}
+.log li:last-child{ border-bottom:0; }
+.log .t{ color:var(--slate-soft); font-weight:600; font-size:var(--t-label);
+  letter-spacing:.05em; padding-top:2px; }
+.log .ev{ color:var(--ink-2); line-height:1.45; }
+.log .ev b{ font-weight:600; }
+.log .ev .who-tag{ color:var(--slate); }
+.log .ev.step{ color:var(--ochre-text); }
+.log .ev.over{ color:var(--ochre-text); }
+.log .ev.over::before{
+  content:"OVERRIDE"; display:inline-block; margin-right:7px;
+  font-size:9px; font-weight:700; letter-spacing:.11em; padding:1px 5px;
+  border:1px solid var(--ochre); border-radius:2px; vertical-align:1px;
+}
+
+/* ==========================================================================
+   ADMIN — multi-branch. The plate changes meaning here: it names the
+   institution, and each branch gets its own smaller plate in the list.
+   ========================================================================== */
+.branch-cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:14px; }
+.bcard{
+  border:1px solid var(--hair-field); border-top:3px solid var(--green);
+  border-radius:var(--r-md); background:var(--field); overflow:hidden;
+  transition:box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+  text-align:left; width:100%; display:block;
+}
+.bcard:hover{ box-shadow:var(--shadow-lift); transform:translateY(-2px); }
+.bcard.is-closed{ border-top-color:var(--slate-soft); }
+.bcard.is-strained{ border-top-color:var(--ochre); }
+.bcard-head{ padding:14px 15px 12px; border-bottom:1px solid var(--hair-field); }
+.bcard-name{ font-family:var(--display); font-size:1.12rem; font-weight:600;
+  line-height:1.2; }
+.bcard-figs{ display:grid; grid-template-columns:repeat(3,1fr); }
+.bcard-figs div{ padding:12px 13px; border-right:1px solid var(--hair-field); }
+.bcard-figs .label{ white-space:nowrap; letter-spacing:.07em; }
+.bcard-figs div:last-child{ border-right:0; }
+.bcard-figs .v{ font-family:var(--display); font-size:1.35rem; font-weight:600;
+  line-height:1; margin-top:4px; }
+.bcard-foot{ padding:10px 15px; background:var(--field-sunk);
+  border-top:1px solid var(--hair-field); font-size:var(--t-dense);
+  color:var(--slate); display:flex; align-items:center; gap:8px; }
+
+/* comparison table gets a subtle leader-line feel */
+.cmp td.lead{ position:relative; }
+.cmp td.lead::after{
+  content:""; position:absolute; left:13px; right:13px; bottom:9px;
+  border-bottom:1px dotted var(--hair); z-index:0;
+}
+.cmp td.lead span{ position:relative; background:var(--field); padding-right:7px; z-index:1; }
+
+/* ==========================================================================
+   STATE INSPECTOR — review scaffolding, NOT part of the product.
+   ========================================================================== */
+.inspector{
+  position:fixed; left:0; right:0; bottom:0; z-index:150;
+  background:#221D0E; color:#EDE3C9; border-top:2px solid var(--ochre);
+  font-size:var(--t-dense);
+}
+.insp-bar{ display:flex; align-items:center; gap:14px; padding:9px 16px;
+  flex-wrap:wrap; max-width:1680px; margin:0 auto; }
+.insp-tag{ font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
+  color:#E0B354; border:1px solid #6A5730; padding:3px 7px; border-radius:2px; flex:none; }
+.insp-group{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.insp-group > span{ font-size:10px; letter-spacing:.11em; text-transform:uppercase;
+  font-weight:700; color:#9A8C68; margin-right:3px; }
+.insp-btn{
+  padding:5px 10px; border:1px solid #4A3F22; border-radius:2px; color:#D9CFB2;
+  font-size:.8125rem; font-weight:600; min-height:32px;
+  transition:background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.insp-btn:hover{ background:#332B16; color:#F6EFDA; }
+.insp-btn[aria-pressed="true"]{ background:var(--ochre); border-color:var(--ochre);
+  color:#241703; }
+.insp-note{ margin-left:auto; color:#9A8C68; font-size:.8125rem; }
+.insp-toggle{ position:fixed; right:16px; bottom:calc(100% + 0px); }
+body.has-inspector{ padding-bottom:56px; }
+@media (max-width:1240px){ body.has-inspector{ padding-bottom:108px; } }
+@media (max-width:760px){ body.has-inspector{ padding-bottom:158px; } }
+
+/* ---- design system sheet (review artifact, not a product screen) -------- */
+.ds-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+.sw{ border:1px solid var(--hair-field); border-radius:var(--r-md); overflow:hidden; }
+.sw i{ display:block; height:58px; }
+.sw .sw-b{ padding:9px 11px; }
+.sw .sw-n{ font-weight:700; font-size:var(--t-dense); }
+.sw .sw-h{ font-size:var(--t-label); letter-spacing:.08em; color:var(--slate-soft);
+  font-weight:600; margin-top:1px; }
+.sw .sw-u{ font-size:var(--t-dense); color:var(--slate); margin-top:5px; line-height:1.4; }
+.spec-row{ display:grid; grid-template-columns:150px minmax(0,1fr); gap:14px;
+  padding:12px 0; border-bottom:1px dotted var(--hair); align-items:baseline; }
+.spec-row:last-child{ border-bottom:0; }
+
+/* spec annotations — toggled by the inspector */
+.spec{
+  display:none; margin:8px 0 0; padding:7px 10px;
+  border:1px dashed var(--spec-dash); border-left:3px solid var(--spec-line);
+  background:var(--spec-bg); border-radius:0 var(--r-sm) var(--r-sm) 0;
+  font-size:.78125rem; line-height:1.5; color:var(--spec-ink);
+}
+.spec b{ font-weight:700; }
+.spec code{ font-family:ui-monospace,"Cascadia Mono",Menlo,monospace; font-size:.94em;
+  background:var(--spec-code); padding:1px 4px; border-radius:2px; }
+body.show-spec .spec{ display:block; }
+
+/* ==========================================================================
+   RESPONSIVE — desktop and tablet are equal citizens.
+   ========================================================================== */
+@media (max-width:1180px){
+  .work-inner{ grid-template-columns:minmax(0,1fr); }
+  .rail-col{ border-left:0; border-top:1px solid var(--hair-field);
+    position:static; max-height:none; }
+  .rail-col .stack{ display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr));
+    gap:18px; align-items:start; }
+}
+@media (max-width:900px){
+  :root{ --pad-field:16px; --gut:24px; }
+  .entry{ grid-template-columns:var(--gut) 74px minmax(0,1fr); }
+  .acts{ grid-column:2 / -1; justify-content:flex-start; margin-top:10px; }
+  .stepped-note{ grid-column:2 / -1; }
+  .plate-inner{ align-items:flex-start; }
+  .plate-side{ order:-1; width:100%; justify-content:space-between; }
+  .whoami{ text-align:left; }
+  .counter-grid{ grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+}
+@media (max-width:600px){
+  .entry{ grid-template-columns:20px minmax(0,1fr); }
+  .rail-seg{ left:9px; } .node{ left:5px; }
+  .ticket{ grid-column:2; display:flex; align-items:baseline; gap:9px; }
+  .ticket-time{ margin-top:0; }
+  .who{ grid-column:2; margin-top:5px; }
+  .stepped-note,.acts{ grid-column:2; }
+  .figures{ grid-template-columns:repeat(2,1fr); }
+  .fig:nth-child(2n){ border-right:0; }
+  .fig{ border-bottom:1px solid var(--hair-field); }
+}
+
+@media print{
+  .inspector,.roles,.subnav,.acts,.btn{ display:none !important; }
+  body{ background:#fff; }
+  .work-inner{ grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body class="has-inspector">
+
+<div class="app">
+  <div id="degradedSlot"></div>
+
+  <header class="plate">
+    <div class="plate-inner">
+      <div class="plate-id">
+        <div class="plate-eyebrow">
+          <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+            <path class="mk-g" d="M4 2v16" stroke-width="2" stroke-linecap="square"/>
+            <circle class="mk-gf" cx="4" cy="5" r="2.6"/>
+            <circle class="mk-g" cx="4" cy="11.5" r="2.2" fill="none" stroke-width="1.6"/>
+            <path class="mk-o" d="M4 15.2c0 2 4.6 1 4.6 3" fill="none" stroke-width="1.8"/>
+          </svg>
+          <span class="plate-org" id="orgLine">Hold My Spot</span>
+        </div>
+        <h1 class="plate-name" id="plateName">Half-Way Tree Branch</h1>
+        <div class="plate-meta" id="plateMeta"></div>
+      </div>
+      <div class="plate-side">
+        <div class="whoami">
+          <div class="n" id="userName">Denise Foster</div>
+          <div class="label-quiet" id="userRole">Desk Clerk</div>
+        </div>
+        <div class="avatar" id="userInitials">DF</div>
+      </div>
+    </div>
+    <div class="roles" role="tablist" aria-label="Staff role">
+      <button class="role-tab" role="tab" data-role="clerk" aria-selected="true">
+        <span class="rt-name">Denise Foster</span><span class="rt-sub">Desk Clerk</span>
+      </button>
+      <button class="role-tab" role="tab" data-role="manager" aria-selected="false">
+        <span class="rt-name">Andrea Simpson</span><span class="rt-sub">Branch Manager</span>
+      </button>
+      <button class="role-tab" role="tab" data-role="admin" aria-selected="false">
+        <span class="rt-name">Errol Bailey</span><span class="rt-sub">Administrator &middot; all branches</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="subnav" aria-label="Section">
+    <div class="subnav-wrap">
+      <div class="branch-chip" id="branchChip" aria-hidden="true"></div>
+      <div class="subnav-inner" id="subnav" role="tablist"></div>
+    </div>
+  </nav>
+
+  <section class="counters" id="counterStrip" aria-label="Counters"></section>
+
+  <div class="work">
+    <div class="work-inner">
+      <main class="main-col" id="mainCol"></main>
+      <aside class="rail-col" id="railCol" aria-label="Branch context"></aside>
+    </div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<div class="inspector" role="region" aria-label="Console controls">
+  <div class="insp-bar">
+    <span class="insp-tag">Hold My Spot</span>
+    <span class="insp-note" id="connState">Connecting to the branch&hellip;</span>
+    <div class="insp-group" style="margin-left:auto">
+      <span>Palette</span>
+      <button class="insp-btn" id="themeToggle" aria-pressed="true">Dark</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   HOLD MY SPOT — STAFF CONSOLE (design render)
+   The data layer below imitates the shapes in section 5 of the commission:
+   every read returns {ok:true, value} and every refusal returns
+   {ok:false, reason}. Nothing here talks to the network. In the build this
+   file is replaced by fetch() against the API base read from env.js.
+   ========================================================================== */
+
+/* ---------- live snapshot store -------------------------------------------
+   THE ONE ACCESSOR RULE (spec section 6): every read below goes through DB,
+   and DB is written by exactly one function, refreshSnapshot(). Two bugs in
+   the design render came from components reading around the accessor; the
+   build keeps the rule by having nothing else to read.
+   -------------------------------------------------------------------------- */
+let SERVICE_TYPES = [];          /* [{id, code, label}] — from GET /api/service-types */
+let PROVISIONAL_NOTE = "";       /* rendered from the payload, never typed here (R-I) */
+
+/* Pre-Clerk presentation only. Role tabs switch freely until P2 enforcement
+   turns on (spec section 9); every refusal already happens on the API. */
+const STAFF = [
+  { id:"df", name:"Denise Foster",  role:"clerk",   initials:"DF", title:"Desk Clerk" },
+  { id:"as", name:"Andrea Simpson", role:"manager", initials:"AS", title:"Branch Manager" },
+  { id:"eb", name:"Errol Bailey",   role:"admin",   initials:"EB", title:"Administrator" }
+];
+
+function emptyDb(){
+  return {
+    locations: [], counters: {}, entries: [], log: [], totals: {},
+    approvals: [],            /* no request-queue backend exists; empty state renders (gap, flagged) */
+    estimate: null,           /* {refused, rendered, basis} — the API's words, verbatim */
+    dashboard: null, adherence: null, overview: null, drill: null
+  };
+}
+let DB = emptyDb();
+
+/* Stepped-over is session state fed by call-next responses. The DURABLE record
+   is the fairness log; this map only keeps the note on the row until the entry
+   is confirmed or removed. A reload loses the note, never the record. */
+const STEPPED = {};
+</script>
+<script>
+"use strict";
+/* ---------- console state ------------------------------------------------ */
+const S = {
+  role: "clerk",
+  screen: "board",
+  loc: null,             // resolved from GET /api/locations at boot
+  myCounter: null,       // resolved from GET /api/counters at boot
+  mode: "loading",       // live | loading | degraded — empty falls out of DATA, never a mode
+  showSpec: false,
+  refusal: null,         // {title, detail, code}
+  lastGood: "--:--",
+  clock: "--:--",
+  drillLoc: null
+};
+const SCREENS = {
+  clerk:   [ {id:"board", label:"The line"}, {id:"reception", label:"Reception join"}, {id:"served", label:"Served today"} ],
+  manager: [ {id:"board", label:"The line"}, {id:"dashboard", label:"Dashboard"}, {id:"adherence", label:"Adherence"},
+             {id:"approvals", label:"Out-of-order requests", badge:true}, {id:"closeofday", label:"Close of day"},
+             {id:"setup", label:"Counters and services"} ],
+  admin:   [ {id:"network", label:"All branches"}, {id:"branch", label:"Branch detail"}, {id:"compare", label:"Comparison"} ]
+};
+
+/* ---------- helpers ------------------------------------------------------ */
+const $  = (s,r)=> (r||document).querySelector(s);
+const $$ = (s,r)=> Array.from((r||document).querySelectorAll(s));
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const svcLabel = code => (SERVICE_TYPES.find(x=>x.code===code)||{}).label || code;
+const loc = id => DB.locations.find(l=>l.id===(id||S.loc));
+const counters = id => DB.counters[id||S.loc] || [];
+const me = () => STAFF.find(s=>s.role===S.role) || STAFF[0];
+const ACTIVE = ["provisional","waiting","called","serving"];
+
+const ICON = {
+  whatsapp:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.4 13.6 3.3 10.6A5.6 5.6 0 1 1 5.5 12.8z" stroke-linejoin="round"/><path d="M6 6.2c.3 1.6 2.2 3.5 3.8 3.8l.8-.9 1.2.6-.3 1.1c-1.9.5-4.9-2.5-4.4-4.4l1.1-.3.6 1.2z" fill="currentColor" stroke="none"/></svg>',
+  qr:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="4.6" height="4.6"/><rect x="9.4" y="2" width="4.6" height="4.6"/><rect x="2" y="9.4" width="4.6" height="4.6"/><path d="M9.4 9.4h2v2h-2zM12.4 12.4h1.6v1.6h-1.6z"/></svg>',
+  reception:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.2" r="2.6"/><path d="M2.8 14c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6"/></svg>',
+  warn:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2.6 18.4 17H1.6z" stroke-linejoin="round"/><path d="M10 7.6v4.2M10 14.4v.1" stroke-linecap="round"/></svg>',
+  info:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.4"/><path d="M8 7.4v4M8 4.9v.1" stroke-linecap="round"/></svg>',
+  offline:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 2 18 18"/><path d="M4.2 8.2a9 9 0 0 1 3.1-1.9M12.9 7.1A9 9 0 0 1 15.8 8.2"/><path d="M7 11.3a5 5 0 0 1 1.4-.8M11.7 10.6a5 5 0 0 1 1.3.7"/><path d="M10 15v.1"/></svg>',
+  x:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  line:'<svg viewBox="0 0 40 40" width="40" height="40" fill="none" stroke="#191509" stroke-width="1.6"><path d="M20 6v28"/><circle cx="20" cy="11" r="3.2"/><circle cx="20" cy="21" r="3.2"/><circle cx="20" cy="31" r="3.2"/></svg>'
+};
+const chanIcon = ch => ICON[ch] || ICON.reception;
+const chanLabel = ch => ch==="whatsapp" ? "WhatsApp" : ch==="qr" ? "QR code" : "Reception";
+
+function spec(html){ return '<div class="spec">'+html+'</div>'; }
+
+/* ==========================================================================
+   API BINDING — the render's mock carried this banner: "The shape is the
+   contract. The build swaps the body, not the signature." This is the swap.
+   Reads stay synchronous against the snapshot; writes go to the network and
+   then refresh the snapshot, so there is still exactly one way data enters.
+   ========================================================================== */
+const API_BASE = (window.HMS_API_BASE || "").replace(/\/+$/, "");
+
+async function apiGET(path){
+  const r = await fetch(API_BASE + path, { headers: { "accept": "application/json" } });
+  return r.json();
+}
+async function apiPOST(path, body){
+  const r = await fetch(API_BASE + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  return r.json();
+}
+
+/* API {ok:false, reason:string} -> the refusal strip's {title, detail, code}.
+   The reason is the first sentence; the second is the standing instruction.
+   Never the word "Error", never a raw object. */
+function toRefusal(res){
+  const reason = (res && res.reason) ? String(res.reason) : "The branch could not record that";
+  return { code: 409, title: reason.charAt(0).toUpperCase() + reason.slice(1),
+           detail: "The line is showing you the current state. If this keeps happening, refresh and try once more." };
+}
+
+function jamaicaClock(d){
+  return new Intl.DateTimeFormat("en-JM", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:"America/Jamaica" }).format(d || new Date());
+}
+
+/* ---- snapshot reads over DB (sync, unchanged signatures) ----------------- */
+function entriesFor(locId){
+  return DB.entries.filter(e => e.loc === (locId||S.loc));
+}
+function queueFor(locId){
+  return entriesFor(locId).filter(e => ACTIVE.includes(e.status));
+}
+function getBoard(locId){
+  if (S.mode === "loading") return { ok:true, value:null, loading:true };
+  return { ok:true, value:{
+    queue: queueFor(locId),
+    totals: DB.totals[locId||S.loc] || {joined:0,served:0,noshow:0,left:0},
+    events: DB.log,
+    estimate: getEstimate(locId)
+  }};
+}
+/* R-G holds by CONSTRUCTION: this returns the API's words and never computes.
+   There is no code path here that could produce a single number. */
+function getEstimate(){
+  if (S.mode === "degraded")
+    return { refused:true,
+      rendered:"We cannot estimate your wait yet, so we would rather not guess.",
+      basis:"The estimator has not been reachable since " + S.lastGood + ". It will not fall back to yesterday and call it today." };
+  if (!DB.estimate)
+    return { refused:true,
+      rendered:"We cannot estimate your wait yet, so we would rather not guess.",
+      basis:"The console has not completed a read yet." };
+  return DB.estimate;
+}
+function refuse(title, detail){ return { ok:false, reason:{ code:409, title:title, detail:detail } }; }
+function guardWrite(){
+  if (S.mode === "degraded")
+    return refuse("The branch cannot record that right now",
+      "The console has not reached the API since " + S.lastGood + ". Nothing has been written and nothing has been lost. The line below is the last state we know to be true.");
+  return null;
+}
+
+/* ---- shape mapping ------------------------------------------------------- */
+function svcCodeById(id){ const t = SERVICE_TYPES.find(x=>x.id===id); return t ? t.code : null; }
+function mapEntry(row, locId){
+  return {
+    id: row.id,
+    /* No ticket number exists in the schema (finding, ledgered). The short id
+       stands in until King B rules a real one. */
+    t: "\u00b7" + String(row.id).slice(0,4).toUpperCase(),
+    loc: locId,
+    name: row.name || null,
+    ch: row.channel,
+    st: svcCodeById(row.service_type_id),
+    status: row.status,
+    at: jamaicaClock(new Date(row.joined_at)),
+    joinedAt: row.joined_at,
+    counter: row.counter || null,      /* counter LABEL; client counter ids ARE labels */
+    contact: row.contact || null,
+    survey: row.survey !== undefined ? row.survey : null,
+    steppedOver: !!STEPPED[row.id],
+    steppedOverReason: STEPPED[row.id] || null
+  };
+}
+function mapEventLine(ev, byId){
+  const e = ev.entry_id ? byId[ev.entry_id] : null;
+  const who = e ? (e.name || ("entry " + (e.t||""))) : "an entry";
+  const kindWords = {
+    onsite_join:"joined at the branch", remote_join:"joined by WhatsApp. Awaiting confirmation",
+    qr_join:"joined by QR code", call_next:"was called in turn",
+    out_of_order_call:"was called ahead of the line", check_in:"arrived at the counter",
+    complete_service:"was served", no_show:"was marked a no-show",
+    undo_call:"had the call undone", undo_check_in:"had the check-in undone",
+    customer_leaves:"left the line", operator_removes:"was removed from the line",
+    confirm:"confirmed their place", close_of_day:"close of day released the line"
+  };
+  const words = kindWords[ev.kind] || (ev.kind + " " + (ev.from_status||"") + " \u2192 " + (ev.to_status||""));
+  let text = "<b>" + esc(who) + "</b> " + words + ".";
+  if (ev.kind === "out_of_order_call")
+    text += " Reason given: " + esc(ev.reason || "none recorded") + ". Approved by <b>" + esc(ev.approver || "UNRECORDED") + "</b>.";
+  if (ev.actor) text += ' <span class="who-tag">' + esc(ev.actor) + "</span>";
+  const kind = ev.kind === "out_of_order_call" ? "over" : ev.kind === "call_next" ? "call" : ev.kind === "no_show" ? "noshow" : "join";
+  return { t: jamaicaClock(new Date(ev.occurred_at)), kind: kind, text: text };
+}
+
+/* ---- THE ONE WRITER OF DB ------------------------------------------------ */
+let everLoaded = false;
+async function refreshSnapshot(){
+  try {
+    if (!DB.locations.length){
+      const locs = await apiGET("/api/locations");
+      DB.locations = (locs.value||[]).map(l => ({ id:l.id, name:l.name, tz:l.timezone, status:"open" }));
+      if (!S.loc && DB.locations.length) S.loc = DB.locations[0].id;
+    }
+    if (!S.loc) throw new Error("no location");
+    const [ctr, svc, board, served] = await Promise.all([
+      apiGET("/api/counters?locationId=" + S.loc),
+      apiGET("/api/service-types?locationId=" + S.loc),
+      apiGET("/api/board?locationId=" + S.loc),
+      apiGET("/api/served-today?locationId=" + S.loc)
+    ]);
+    SERVICE_TYPES = (svc.value||[]).map(t => ({ id:t.id, code:t.code, label:t.label }));
+    PROVISIONAL_NOTE = svc.provisionalNote || PROVISIONAL_NOTE;
+    DB.counters[S.loc] = (ctr.value||[]).map(c => ({ id:c.label, label:c.label, open:c.active }));
+    if (!S.myCounter && DB.counters[S.loc].length) S.myCounter = DB.counters[S.loc][0].id;
+
+    const q = (board.value.queue||[]).map(r => mapEntry(r, S.loc));
+    const done = (served.value||[]).map(r => mapEntry(Object.assign({}, r, {
+      status: "served",
+      survey: !r.survey_sent ? null : {
+        achieved: r.survey_responded ? r.achieved : null,
+        waitMatch: !r.survey_responded ? null : (r.wait_match !== null ? true : null),
+        sent: true
+      }
+    }), S.loc));
+    DB.entries = q.concat(done);
+
+    const t = board.value.totals || { served:0, noshow:0, left:0 };
+    DB.totals[S.loc] = { joined: q.length + done.length + t.noshow + t.left, served: t.served, noshow: t.noshow, left: t.left };
+
+    const byId = {}; DB.entries.forEach(e => { byId[e.id] = e; });
+    DB.log = (board.value.events||[]).map(ev => mapEventLine(ev, byId));
+
+    const est = board.value.estimate;
+    DB.estimate = { refused: est.kind !== "estimate", rendered: est.text, basis: est.basis };
+
+    S.mode = "live"; S.lastGood = jamaicaClock(); everLoaded = true;
+    const conn = $("#connState");
+    if (conn) conn.textContent = "Live \u00b7 " + API_BASE.replace(/^https?:\/\//, "");
+  } catch (err) {
+    /* Fail loudly toward the operator, never silently: the degraded band takes
+       the whole top of the page and every write control disables. */
+    if (everLoaded) S.mode = "degraded"; else S.mode = "loading";
+    const conn = $("#connState");
+    if (conn) conn.textContent = everLoaded ? ("LOST THE API \u00b7 last confirmed " + S.lastGood) : "Connecting to the branch\u2026";
+  }
+}
+
+/* Screen-scoped reads, fetched when their screen is active. Same accessor
+   rule: they write DB, render reads DB. */
+async function ensureScreenData(){
+  try {
+    if (S.screen === "dashboard" || S.screen === "adherence"){
+      const which = S.screen;
+      const res = await apiGET("/api/" + which + "?locationId=" + S.loc + "&windowDays=7");
+      DB[which] = res.value || null;
+    }
+    if (S.role === "admin"){
+      const ov = await apiGET("/api/admin/overview");
+      DB.overview = ov.value || [];
+      if (S.screen === "branch" && S.drillLoc){
+        const b = await apiGET("/api/board?locationId=" + S.drillLoc);
+        DB.drill = { queue: (b.value.queue||[]).map(r => mapEntry(r, S.drillLoc)) };
+      }
+    }
+  } catch (err) { /* the main poll owns degraded mode; screen data just stays null */ }
+}
+
+/* ---- writes: to the network, then the snapshot, then the paint ----------- */
+async function callNext(counterId){
+  const g = guardWrite(); if (g) return g;
+  const res = await apiPOST("/api/call-next", { locationId: S.loc, counter: counterId, actor: me().name });
+  if (!res.ok) return { ok:false, reason: toRefusal(res) };
+  const v = res.value || {};
+  (v.steppedOver||[]).forEach(function(x){
+    STEPPED[x.id] = "Passed for " + counterId + " at " + jamaicaClock() +
+      ". This entry has not been confirmed, so call-next moved to the next confirmed person in line.";
+  });
+  await refreshSnapshot();
+  return { ok:true, value:{ called: DB.entries.find(e=>e.id===v.calledEntryId) || null, steppedOver: v.steppedOver||[] } };
+}
+async function entryVerb(id, verb){
+  const g = guardWrite(); if (g) return g;
+  const res = await apiPOST("/api/" + verb, { entryId: id, locationId: S.loc, actor: me().name });
+  if (!res.ok) return { ok:false, reason: toRefusal(res) };
+  if (verb === "confirm" || verb === "remove" || verb === "leave") delete STEPPED[id];
+  await refreshSnapshot();
+  return { ok:true, value: res.value };
+}
+/* I7 upgrade path: pre-Clerk the approver travels as the recorded string
+   (R13, recorded not authenticated); once enforcement is on, the API writes
+   the SESSION identity and ignores this field. No client change at cutover. */
+async function callOutOfOrder(id, approver, reason){
+  const g = guardWrite(); if (g) return g;
+  const res = await apiPOST("/api/call-entry", {
+    locationId: S.loc, entryId: id, counter: S.myCounter, approver: approver, reason: reason
+  });
+  if (!res.ok) return { ok:false, reason: toRefusal(res) };
+  await refreshSnapshot();
+  return { ok:true, value: res.value };
+}
+function nameOf(e){ return e.name || ("Ticket "+e.t); }
+function statusWord(s){
+  return { provisional:"not yet confirmed", waiting:"waiting in line", called:"called and not yet at the counter",
+           serving:"being served", served:"already served", noshow:"marked a no-show", left:"out of the line" }[s] || s;
+}
+function pastTense(v){
+  return { confirm:"was confirmed", "check-in":"was checked in", complete:"was completed",
+           "no-show":"was marked a no-show", "undo-call":"had the call undone",
+           "undo-check-in":"had the check-in undone", leave:"left the line", remove:"was removed from the line" }[v] || v;
+}
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   RENDER — CHROME
+   ========================================================================== */
+function renderChrome(){
+  const L = loc();
+  const u = me();
+  $("#userName").textContent = u.name;
+  $("#userRole").textContent = S.role==="admin" ? "Administrator" : u.title;
+  $("#userInitials").textContent = u.initials;
+
+  if (S.role === "admin" && S.screen === "network"){
+    $("#orgLine").textContent = "Hold My Spot";
+    $("#plateName").textContent = "All branches";
+    $("#plateMeta").innerHTML =
+      '<span class="branch-state">' + DB.locations.length + (DB.locations.length===1?' branch':' branches') + '</span>' +
+      '<span class="dot"></span><span>Jamaica</span>' +
+      '<span class="dot"></span><span class="clock">' + S.clock + '</span>' +
+      '<span class="dot"></span><span>America/Jamaica</span>';
+  } else {
+    /* The plate renders ONLY fields the API carries: name, timezone, clock.
+       Branch hours are not a concept the backend has yet; the plate does not
+       invent an "Open until". */
+    const shown = ((S.role==="admin" && S.screen==="branch") ? loc(S.drillLoc) : L) || { name:"\u2026", tz:"" };
+    $("#orgLine").innerHTML   = S.role==="admin" && S.screen==="branch"
+      ? 'Hold My Spot <span style="color:var(--slate-soft)">&middot; viewing one branch</span>' : "Hold My Spot";
+    $("#plateName").textContent = shown.name;
+    $("#plateMeta").innerHTML =
+      '<span class="branch-state">Serving today</span>' +
+      '<span class="dot"></span><span class="clock">' + S.clock + '</span>' +
+      (shown.tz ? '<span class="dot"></span><span>' + esc(shown.tz) + '</span>' : '');
+  }
+
+  const chipLoc = (S.role==="admin" && S.screen!=="branch") ? null
+                : (S.role==="admin" && S.screen==="branch") ? loc(S.drillLoc) : L;
+  $("#branchChip").className = "branch-chip";
+  $("#branchChip").innerHTML = chipLoc
+    ? '<span class="bc-dot"></span>' + esc(chipLoc.name)
+    : '<span class="bc-dot"></span>All branches';
+
+  $$(".role-tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.role === S.role)));
+
+  const pending = DB.approvals.length;
+  $("#subnav").innerHTML = SCREENS[S.role].map(s =>
+    '<button class="sub-tab" role="tab" data-screen="' + s.id + '" aria-selected="' + (s.id===S.screen) + '">' +
+      esc(s.label) + (s.badge && pending ? '<span class="badge">' + pending + '</span>' : '') +
+    '</button>').join("");
+
+  const slot = $("#degradedSlot");
+  slot.innerHTML = S.mode === "degraded"
+    ? '<div class="degraded">' + ICON.offline +
+      '<div><b>The console has lost the API.</b> Nothing you do here will be recorded until it is back. What you see below is the last state we know to be true, from ' + S.lastGood + '.</div>' +
+      '<span class="age">Last confirmed ' + S.lastGood + '</span></div>'
+    : "";
+}
+
+/* ==========================================================================
+   RENDER — COUNTER STRIP (R5)
+   ========================================================================== */
+function renderCounters(){
+  const strip = $("#counterStrip");
+  if (S.role === "admin" && S.screen !== "branch"){ strip.style.display = "none"; return; }
+  strip.style.display = "";
+  const locId = (S.role==="admin" && S.screen==="branch") ? S.drillLoc : S.loc;
+  const cs = counters(locId);
+  const q  = S.mode === "empty" ? [] : DB.entries.filter(e => e.loc === locId);
+  const readOnly = S.mode === "degraded" || S.role === "admin";
+
+  if (S.mode === "loading"){
+    strip.innerHTML = '<div class="counters-inner"><div class="counters-head"><span class="label">Counters</span></div>' +
+      '<div class="counter-grid">' + cs.map(()=>'<div class="counter"><div class="skel" style="width:64%"></div>' +
+      '<div class="skel" style="width:44%;margin-top:12px;height:16px"></div>' +
+      '<div class="skel" style="width:80%;margin-top:9px"></div></div>').join("") + '</div></div>';
+    return;
+  }
+
+  const tiles = cs.map(c => {
+    const at = q.find(e => e.counter === c.id && (e.status==="called" || e.status==="serving"));
+    let cls = "is-open", state = "Open", body, sub = "";
+    if (!c.open){ cls = "is-closed"; state = "Closed"; body = '<div class="counter-sub soft">Not taking anyone today.</div>'; }
+    else if (at && at.status === "serving"){
+      cls = "is-serving"; state = "Serving";
+      body = '<div class="counter-serving">' + esc(nameOf(at)) + '</div>';
+      sub  = '<div class="counter-sub">' + at.t + ' &middot; ' + esc(svcLabel(at.st)) + '</div>';
+    } else if (at && at.status === "called"){
+      cls = "is-called"; state = "Called, not arrived";
+      body = '<div class="counter-serving">' + esc(nameOf(at)) + '</div>';
+      sub  = '<div class="counter-sub">' + at.t + ' &middot; called ' + S.clock + '</div>';
+    } else {
+      body = '<div class="counter-sub soft" style="margin-top:4px">No one at this counter.</div>';
+      sub  = readOnly ? '' :
+        '<div class="cta"><button class="btn btn-primary btn-sm" data-act="call-next" data-counter="' + c.id + '">Call next</button></div>';
+    }
+    const mine = (S.role === "clerk" && c.id === S.myCounter)
+      ? '<span class="counter-state"><span style="color:var(--green)">Your counter</span> &middot; ' + state + '</span>'
+      : '<span class="counter-state">' + state + '</span>';
+    return '<div class="counter ' + cls + '">' +
+      '<div class="counter-top"><span class="counter-label">' + esc(c.label) + '</span>' + mine + '</div>' +
+      body + sub + '</div>';
+  }).join("");
+
+  strip.innerHTML = '<div class="counters-inner">' +
+    '<div class="counters-head"><span class="label">Counters at ' + esc(loc(locId).name) + '</span>' +
+    '<span class="dense soft">Labels come from the branch record. Rename them in Counters and services.</span></div>' +
+    '<div class="counter-grid">' + tiles + '</div>' +
+    spec('<b>GET /api/counters?locationId</b> &mdash; labels are data (<code>Counter 1..3</code> are the seeded defaults, not hardcoded strings). ' +
+         'Gap s6: counters are <b>not seeded in prod</b>; this strip renders the empty-counter state until that gated seed lands.') +
+    '</div>';
+}
+
+/* ==========================================================================
+   RENDER — THE LINE
+   ========================================================================== */
+const DETOUR = '<svg class="detour" viewBox="0 0 28 100" preserveAspectRatio="none" aria-hidden="true">' +
+  '<path d="M14 0 C14 18 4 24 4 50 C4 76 14 82 14 100" vector-effect="non-scaling-stroke"/></svg>';
+
+function entryActions(e, isNext){
+  if (S.role === "admin") return "";
+  const dis = S.mode === "degraded" ? " disabled" : "";
+  const B = (cls, verb, label) => '<button class="btn btn-sm ' + cls + '" data-act="verb" data-verb="' + verb + '" data-id="' + e.id + '"' + dis + '>' + label + '</button>';
+  switch(e.status){
+    case "provisional":
+      return B("btn-primary","confirm","Confirm") + B("btn-ghost","remove","Remove");
+    case "waiting":
+      return (isNext
+        ? '<button class="btn btn-sm btn-primary" data-act="call-this" data-id="' + e.id + '"' + dis + '>Call to my counter</button>'
+        : '<button class="btn btn-sm btn-ghost btn-oo" data-act="call-oo" data-id="' + e.id + '"' + dis + '>Call out of order</button>')
+        + B("btn-ghost","leave","Left the line");
+    case "called":
+      return B("btn-primary","check-in","Check in") + B("btn-danger","no-show","No-show") + B("btn-ghost","undo-call","Undo call");
+    case "serving":
+      return B("btn-primary","complete","Complete") + B("btn-ghost","undo-check-in","Undo check-in");
+    default:
+      return "";
+  }
+}
+
+function entryRow(e, i, isNext){
+  const stepped = !!e.steppedOver;
+  const name = e.name
+    ? esc(e.name)
+    : '<span class="unnamed">No name yet. ' + esc(e.contact || "No contact on file either.") + '</span>';
+  const survey = e.status === "served" && e.survey
+    ? (e.survey.achieved == null ? '<span class="sep"></span><span class="soft">Survey sent, no answer yet</span>'
+      : e.survey.waitMatch == null ? '<span class="sep"></span><span class="soft">Survey 1 of 2, left half-answered</span>'
+      : '<span class="sep"></span><span class="soft">Survey 2 of 2</span>')
+    : "";
+  return '<li class="entry st-' + e.status + (stepped ? " is-stepped" : "") + '">' +
+    '<div class="rail">' + (stepped ? DETOUR : "") + '<span class="rail-seg"></span><span class="node"></span></div>' +
+    '<div class="ticket"><div class="ticket-no">' + e.t + '</div><div class="ticket-time">' + e.at + '</div></div>' +
+    '<div class="who"><div class="who-name">' + name + '</div>' +
+      '<div class="who-line">' +
+        '<span class="pill pill-' + e.status + '">' + statusPill(e) + '</span>' +
+        '<span class="sep"></span><span>' + esc(svcLabel(e.st)) + '</span>' +
+        '<span class="sep"></span><span class="chan">' + chanIcon(e.ch) + chanLabel(e.ch) + '</span>' +
+        (e.counter ? '<span class="sep"></span><span>' + esc((counters().find(c=>c.id===e.counter)||{}).label||"") + '</span>' : "") +
+        survey +
+      '</div></div>' +
+    '<div class="acts">' + (stepped ? "" : entryActions(e, isNext)) + '</div>' +
+    (stepped ? '<div class="stepped-note"><b>Stepped over</b>' + esc(e.steppedOverReason) +
+        (S.role === "admin" ? "" :
+        '<div class="fix"><button class="btn btn-sm btn-primary" data-act="verb" data-verb="confirm" data-id="' + e.id + '"' +
+          (S.mode === "degraded" ? " disabled" : "") + '>Confirm and restore</button>' +
+        '<button class="btn btn-sm btn-ghost" data-act="verb" data-verb="remove" data-id="' + e.id + '"' +
+          (S.mode === "degraded" ? " disabled" : "") + '>Remove from line</button></div>') + '</div>' : "") +
+  '</li>';
+}
+function statusPill(e){
+  return { provisional:"Not confirmed", waiting:"Waiting", called:"Called", serving:"Serving",
+           served:"Served", noshow:"No-show", left:"Left" }[e.status] || e.status;
+}
+
+function skeletonLine(n){
+  let out = "";
+  for (let i=0;i<n;i++) out +=
+    '<li class="skel-row"><div></div><div class="skel" style="width:52px"></div>' +
+    '<div><div class="skel" style="width:' + (120+((i*37)%110)) + 'px;height:14px"></div>' +
+    '<div class="skel" style="width:' + (170+((i*53)%90)) + 'px;margin-top:8px"></div></div>' +
+    '<div class="skel" style="width:150px;height:30px"></div></li>';
+  return '<ul class="line">' + out + '</ul>';
+}
+
+function emptyLine(){
+  return '<div class="empty">' + ICON.line.replace("<svg","<svg class=\"e-mark\"") +
+    '<h3>No one is in line</h3>' +
+    '<p>The branch is open and the counters are clear. Reception can add a walk-in, or a customer can join from WhatsApp or the QR code at the door.</p>' +
+    (S.role === "admin" ? "" : '<button class="btn btn-primary" data-act="goto" data-screen="reception">Add a walk-in</button>') +
+    '</div>';
+}
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   REFUSAL STRIP — presented in place, calmly, never as a crash.
+   ========================================================================== */
+function refusalHTML(){
+  if (!S.refusal) return "";
+  return '<div class="refusal" role="alert">' + ICON.warn +
+    '<div><div class="r-title">' + esc(S.refusal.title) + '<span class="r-code">HTTP ' + (S.refusal.code||409) + '</span></div>' +
+    '<div>' + esc(S.refusal.detail) + '</div></div>' +
+    '<button class="refusal-close" data-act="dismiss" aria-label="Dismiss">' + ICON.x + '</button></div>';
+}
+
+/* ==========================================================================
+   SCREEN: THE LINE (clerk + manager)
+   ========================================================================== */
+function screenBoard(){
+  const board = getBoard();
+  const stale = S.mode === "degraded" ? " is-stale" : "";
+  const q = S.mode === "loading" ? [] : board.value.queue;
+  const waiting = q.filter(e => e.status === "waiting");
+  const nextId = waiting.length ? waiting[0].id : null;
+
+  let list;
+  if (S.mode === "loading") list = skeletonLine(6);
+  else if (!q.length) list = emptyLine();
+  else list = '<ul class="line' + stale + '">' +
+      q.map((e,i) => entryRow(e, i, e.id === nextId)).join("") + '</ul>';
+
+  const stepped = q.filter(e => e.steppedOver).length;
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l">' +
+    '<h2 class="screen-title">The line</h2>' +
+    '<span class="dense muted">' + (S.mode==="loading" ? "Loading" : q.length + " in line") +
+    (stepped ? ' &middot; <span style="color:var(--ochre);font-weight:600">' + stepped + ' stepped over</span>' : '') + '</span>' +
+  '</div>' +
+  '<div class="dense soft">Ordered by the time each person joined. Never re-sorted.</div></div>' +
+  '<p class="section-note" style="margin-bottom:16px">Nobody moves up this list by anything other than being served, leaving, or an out-of-order call that a manager put their name to.</p>' +
+  spec('<b>GET /api/board?locationId</b> &rarr; <code>{queue, totals, events, estimate}</code>. ' +
+       '<b>I1</b>: render order is join time, full stop &mdash; no client-side sort control exists on this screen, by design. ' +
+       '<b>I8</b>: <code>steppedOver</code> from the API drives the detour in the spine and the note beneath the row; it is never collapsed into a tooltip.') +
+  list;
+}
+
+/* ==========================================================================
+   SCREEN: RECEPTION JOIN — the only simulated flow (R6)
+   ========================================================================== */
+function screenReception(){
+  const dis = S.mode === "degraded" ? " disabled" : "";
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Add a walk-in</h2></div>' +
+  '<div class="dense soft">Joins the line at the current time</div></div>' +
+  '<p class="section-note" style="margin-bottom:18px">Use this when someone comes to the desk instead of joining by WhatsApp or QR. They take their real place in the line from the moment you save.</p>' +
+  '<div class="panel" style="max-width:680px">' +
+    '<div class="panel-head"><span class="label">Walk-in details</span></div>' +
+    '<div class="panel-body">' +
+      '<div class="field"><label for="wName">Name</label>' +
+        '<input class="input" id="wName" placeholder="As the customer gives it" autocomplete="off">' +
+        '<div class="hint">Staff call people by name at the counter. If someone will not give one, leave it blank and the ticket number stands in.</div></div>' +
+      '<div class="form-grid">' +
+        '<div class="field"><label for="wPhone">Mobile number</label>' +
+          '<input class="input" id="wPhone" placeholder="876 000 0000" inputmode="tel" autocomplete="off">' +
+          '<div class="hint">Optional. Only used to text them when their turn comes.</div></div>' +
+        '<div class="field"><label for="wSvc">What they are here for</label>' +
+          '<select class="select" id="wSvc">' + SERVICE_TYPES.map(s=>'<option value="'+s.code+'">'+esc(s.label)+'</option>').join("") + '</select>' +
+          '<div class="hint">Provisional list. See the note in the panel on the right.</div></div>' +
+      '</div>' +
+      '<div class="field"><label>How they joined</label>' +
+        '<div class="choice-row">' +
+          '<label class="choice is-on"><input type="radio" name="ch" value="reception" checked> Reception desk</label>' +
+          '<label class="choice"><input type="radio" name="ch" value="qr"> QR code at the door</label>' +
+        '</div></div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:18px">' +
+        '<button class="btn btn-primary btn-lg" data-act="join"' + dis + '>Add to the line</button>' +
+        '<button class="btn btn-lg" data-act="goto" data-screen="board">Cancel</button>' +
+      '</div>' +
+      spec('<b>POST /api/join</b> <code>{locationId, channel:"reception"|"qr", contact?, name?}</code>. ' +
+           'Gap s6: <code>name</code> <b>does not exist on the entry schema yet</b> &mdash; this field is designed through an additive migration the HMS build must land, plus the matching WhatsApp prompt. ' +
+           'Until it does, the field is hidden and every row falls back to the ticket number.') +
+    '</div>' +
+  '</div>';
+}
+
+/* ==========================================================================
+   SCREEN: SERVED TODAY
+   ========================================================================== */
+function screenServed(){
+  const done = entriesFor().filter(e => ["served","noshow","left"].includes(e.status));
+  if (S.mode === "loading") return skeletonLine(5);
+  const rows = done.length ? done.map(e => {
+    const s = e.survey;
+    const sv = !s ? '<span class="soft">Not sent</span>'
+      : s.achieved == null ? '<span class="soft">Sent, no answer</span>'
+      : s.waitMatch == null ? '<span style="color:var(--ochre);font-weight:600">1 of 2</span> <span class="soft">left half-answered</span>'
+      : '<span style="color:var(--green);font-weight:600">2 of 2</span>';
+    return '<tr><td class="strong">' + e.t + '</td><td class="nm">' + esc(nameOf(e)) + '</td>' +
+      '<td>' + esc(svcLabel(e.st)) + '</td><td>' + e.at + '</td>' +
+      '<td><span class="pill pill-' + e.status + '">' + statusPill(e) + '</span></td>' +
+      '<td>' + sv + '</td></tr>';
+  }).join("") : '<tr><td colspan="6" style="padding:32px;text-align:center" class="soft">No one has finished at this branch today.</td></tr>';
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Served today</h2></div>' +
+  '<div class="dense soft">' + done.length + ' finished</div></div>' +
+  '<div class="panel"><div class="panel-body tight"><table class="tbl">' +
+    '<thead><tr><th>Ticket</th><th>Name</th><th>Service</th><th>Joined</th><th>Outcome</th><th>Survey</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div></div>' +
+  spec('Survey column shows the true count, not a rate. <b>A half-answered survey stays half-answered</b> &mdash; the second question is never inferred from the first and the row is never rounded up to complete.');
+}
+
+/* ==========================================================================
+   SCREEN: DASHBOARD (manager)
+   ========================================================================== */
+function screenDashboard(){
+  const d = DB.dashboard;
+  if (S.mode === "loading" || !d) return dashSkeleton();
+  const t = DB.totals[S.loc] || { joined:0, served:0, noshow:0, left:0 };
+  const totalServed = d.serviceTypes.reduce(function(a,x){ return a + x.stats.count; }, 0);
+  const sv = d.surveys;
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Dashboard</h2>' +
+    '<span class="dense muted">Last ' + d.windowDays + ' days</span></div></div>' +
+
+  '<div class="figures">' +
+    fig("In line now", queueFor().length, "at this branch", "") +
+    fig("Served today", t.served, "of " + t.joined + " who joined", "accent") +
+    fig("No-shows", t.noshow, "called and did not come", "warn") +
+    fig("Left the line", t.left, "gave up before being called", "") +
+  '</div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Service, by type</span>' +
+    '<span class="dense soft">Last ' + d.windowDays + ' days</span></div>' +
+    '<div class="provisional-note">' + ICON.info + '<div><b>Provisional.</b> ' + esc(PROVISIONAL_NOTE) + '</div></div>' +
+    '<div class="panel-body tight"><table class="tbl">' +
+    '<thead><tr><th>Service type</th><th class="num">Served</th><th class="num">Median service</th><th style="width:30%">Share</th></tr></thead><tbody>' +
+    (d.serviceTypes.length ? d.serviceTypes.map(function(x){
+      const pct = totalServed === 0 ? 0 : Math.round(x.stats.count / totalServed * 100);
+      const med = x.stats.medianMinutes === null ? '<span class="soft">\u2014</span>'
+        : Math.round(x.stats.medianMinutes) + ' min' + (x.stats.provisional ? ' <span class="soft">(provisional, n=' + x.stats.count + ')</span>' : '');
+      return '<tr><td class="strong">' + esc(x.label) + '</td><td class="num">' + x.stats.count + '</td>' +
+        '<td class="num">' + med + '</td>' +
+        '<td><span class="dense">' + pct + '%</span><div class="bar"><i style="width:' + pct + '%"></i></div></td></tr>';
+    }).join("") : '<tr><td colspan="4" style="padding:24px;text-align:center" class="soft">Nothing completed in this window yet.</td></tr>') +
+    '</tbody></table></div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Survey results</span>' +
+    '<span class="dense soft">Two questions, asked once</span></div><div class="panel-body">' +
+    '<div class="figures" style="margin:0">' +
+      fig("Got what they came for", sv.achievedYes + " of " + sv.achievedOf, "answered question one", "accent") +
+      fig("Wait matched what we told them", sv.waitMatched + " of " + sv.waitMatchedOf, "answered question two", "") +
+      fig("Half-answered", sv.halfAnswered, "answered one, stopped there", "warn") +
+      fig("Never answered", sv.neverAnswered, "survey sent, no reply", "") +
+    '</div>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">What we said against what happened</span>' +
+    '<span class="dense soft">Estimate calibration</span></div><div class="panel-body">' +
+    '<div class="figures" style="margin:0">' +
+      fig("Estimates given", d.calibration.predicted, "with a stored range", "") +
+      fig("Landed inside the range", d.calibration.within, "of " + d.calibration.predicted, "accent") +
+      fig("Quicker than promised", d.calibration.under, "called before the low end", "") +
+      fig("Slower than promised", d.calibration.over, "called after the high end", "warn") +
+    '</div>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">How to read this page</span></div>' +
+    '<div class="panel-body"><ul class="log">' +
+      d.notes.map(function(n){ return '<li><span class="t"></span><span class="ev">' + esc(n) + '</span></li>'; }).join("") +
+    '</ul></div></div>';
+}
+function fig(label, value, sub, cls){
+  return '<div class="fig ' + (cls||"") + '"><div class="label">' + esc(label) + '</div>' +
+    '<div class="figure">' + esc(String(value)) + '</div>' +
+    '<div class="fig-sub">' + esc(sub) + '</div></div>';
+}
+function dashSkeleton(){
+  return '<div class="figures">' + [1,2,3,4,5].map(()=>'<div class="fig">' +
+    '<div class="skel" style="width:60%"></div><div class="skel" style="width:44%;height:26px;margin-top:10px"></div>' +
+    '<div class="skel" style="width:76%;margin-top:9px"></div></div>').join("") + '</div>' +
+    '<div class="panel"><div class="panel-body">' + [1,2,3,4].map(()=>'<div class="skel" style="margin-bottom:14px"></div>').join("") + '</div></div>';
+}
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   SCREEN: ADHERENCE (manager) — a report. It deliberately offers no actions.
+   ========================================================================== */
+function screenAdherence(){
+  const a = DB.adherence;
+  if (S.mode === "loading" || !a) return dashSkeleton();
+  const tc = a.perCounter.reduce(function(x,r){ return x + r.totalCalls; }, 0);
+  const inO = a.perCounter.reduce(function(x,r){ return x + r.inOrder; }, 0);
+  const oo  = tc - inO;
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Adherence</h2>' +
+    '<span class="dense muted">Last 7 days</span></div></div>' +
+  '<p class="section-note" style="margin-bottom:18px">How often the line was served in the order people joined it, and every time it was not. This is a record. There is nothing to press here on purpose &mdash; a report that can also change things stops being a record.</p>' +
+
+  '<div class="figures">' +
+    fig("Calls made", tc, "across the window", "") +
+    fig("In join order", inO + " of " + tc, tc ? (Math.round(inO/tc*1000)/10 + "% of calls") : "no calls yet", "accent") +
+    fig("Out of order", oo, "each one needs a named approver", oo ? "warn" : "") +
+    fig("Unapproved overrides", a.totalUnapproved, a.totalUnapproved ? "a DEFECT under I7, not drift" : "none \u2014 as it must be", a.totalUnapproved ? "warn" : "accent") +
+  '</div>' +
+
+  (a.findings.length
+    ? '<div class="refusal" role="alert" style="margin-bottom:16px">' + ICON.warn + '<div>' +
+      a.findings.map(function(f){ return '<div>' + esc(f) + '</div>'; }).join("") + '</div></div>'
+    : '') +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Counter by counter</span></div>' +
+  '<div class="panel-body tight"><table class="tbl"><thead><tr>' +
+    '<th>Counter</th><th class="num">Calls</th><th class="num">In order</th><th class="num">Approved overrides</th>' +
+    '<th class="num">Unapproved</th><th class="num">Adherence</th></tr></thead><tbody>' +
+    (a.perCounter.length ? a.perCounter.map(function(r){
+      const rate = r.adherence.rate === null ? '<span class="soft">\u2014</span>'
+        : (Math.round(r.adherence.rate*1000)/10) + '%' + (r.adherence.provisional ? ' <span class="soft">(provisional)</span>' : '');
+      return '<tr><td class="strong">' + esc(r.label) + '</td><td class="num">' + r.totalCalls + '</td>' +
+        '<td class="num">' + r.inOrder + '</td>' +
+        '<td class="num">' + r.outOfOrderApproved + '</td>' +
+        '<td class="num"' + (r.outOfOrderUnapproved ? ' style="color:var(--claret);font-weight:700"' : '') + '>' + r.outOfOrderUnapproved + '</td>' +
+        '<td class="num">' + rate + '</td></tr>';
+    }).join("") : '<tr><td colspan="6" style="padding:24px;text-align:center" class="soft">No calls in this window yet.</td></tr>') +
+  '</tbody></table></div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Posture</span></div>' +
+    '<div class="panel-body"><ul class="log">' +
+      a.notes.map(function(n){ return '<li><span class="t"></span><span class="ev">' + esc(n) + '</span></li>'; }).join("") +
+    '</ul></div></div>';
+}
+
+/* ==========================================================================
+   SCREEN: OUT-OF-ORDER REQUESTS (manager, I7)
+   ========================================================================== */
+function screenApprovals(){
+  if (S.mode === "loading") return dashSkeleton();
+  if (!DB.approvals.length) return refusalHTML() +
+    '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Out-of-order requests</h2></div></div>' +
+    '<div class="empty"><h3>Nothing is waiting on you</h3><p>When a clerk needs to call someone ahead of the line, the request lands here with the reason they gave. You decide, and your name goes on the record.</p></div>';
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Out-of-order requests</h2>' +
+    '<span class="dense muted">' + DB.approvals.length + ' waiting on you</span></div></div>' +
+  '<p class="section-note" style="margin-bottom:18px">Approving one of these puts your name in the branch record permanently, next to the reason given. That is the point of it.</p>' +
+  DB.approvals.map(a => '<div class="panel">' +
+    '<div class="panel-head"><span class="label">' + esc(a.t) + ' &middot; ' + esc(a.who) + '</span>' +
+      '<span class="dense soft">Raised ' + a.at + ' by ' + esc(a.raisedBy) + '</span></div>' +
+    '<div class="panel-body">' +
+      '<div class="consequence"><strong>' + esc(a.who) + '</strong> would be called ahead of <strong>' + a.ahead + ' ' +
+        (a.ahead===1?"person":"people") + '</strong> who joined before them. Each of them keeps their place; they simply wait longer.</div>' +
+      '<div class="field"><label>Reason the clerk gave</label>' +
+        '<div class="dense" style="padding:9px 11px;background:var(--field-sunk);border:1px solid var(--hair-field);border-radius:var(--r-md)">' + esc(a.reason) + '</div></div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap">' +
+        '<button class="btn btn-ochre" data-act="approve-req" data-id="' + a.id + '">Approve in my name</button>' +
+        '<button class="btn" data-act="decline-req" data-id="' + a.id + '">Decline</button>' +
+      '</div>' +
+      spec('<b>I7</b>: the approver is captured as an identity, not a role. The API rejects an out-of-order call with no approver; this screen and the clerk modal are the two places that identity is collected.') +
+    '</div></div>').join("");
+}
+
+/* ==========================================================================
+   SCREEN: CLOSE OF DAY (manager — CC recommendation, flagged in s6)
+   ========================================================================== */
+function screenCloseOfDay(){
+  const q = queueFor();
+  const t = DB.totals[S.loc];
+  const blocked = q.length > 0;
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Close of day</h2></div>' +
+    '<div class="dense soft">' + esc(loc().name) + ' &middot; ' + S.clock + '</div></div>' +
+  '<p class="section-note" style="margin-bottom:18px">Closing ends the day for this branch. Anyone still in line is recorded as still in line at close, not quietly marked served.</p>' +
+  '<div class="panel" style="max-width:720px">' +
+    '<div class="panel-head"><span class="label">What will be written</span></div>' +
+    '<div class="panel-body">' +
+      '<div class="figures" style="margin-bottom:16px">' +
+        fig("Joined", t.joined, "all channels", "") +
+        fig("Served", t.served, "completed at a counter", "accent") +
+        fig("No-show", t.noshow, "called, did not come", "warn") +
+        fig("Left", t.left, "gave up before being called", "") +
+      '</div>' +
+      (blocked
+        ? '<div class="refusal" style="margin-bottom:16px">' + ICON.warn +
+          '<div><div class="r-title">' + q.length + ' people are still in line</div>' +
+          '<div>Close of day will record them as unserved at close. If they are being seen now, finish them first. If they went home, mark them as left the line.</div></div></div>'
+        : '') +
+      '<div class="field"><label for="codNote">Note for the record</label>' +
+        '<textarea class="textarea" id="codNote" placeholder="Anything about today the numbers do not carry."></textarea></div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap">' +
+        '<button class="btn btn-primary btn-lg" data-act="close-day"' + (S.mode==="degraded"?" disabled":"") + '>Close the day</button>' +
+        '<button class="btn btn-lg" data-act="goto" data-screen="board">Back to the line</button></div>' +
+      spec('<b>POST /api/close-of-day {locationId}</b>. Gap s6: permission is <b>UNRULED</b>. Placed under Manager per the CC recommendation and flagged here. ' +
+           'If the ruling puts it elsewhere, the screen moves; the warning about people still in line moves with it.') +
+    '</div></div>';
+}
+
+/* ==========================================================================
+   SCREEN: COUNTERS AND SERVICES (manager)
+   ========================================================================== */
+function screenSetup(){
+  const cs = counters();
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Counters and services</h2></div>' +
+    '<div class="dense soft">' + esc(loc().name) + '</div></div>' +
+  '<div class="panel"><div class="panel-head"><span class="label">Counters</span>' +
+    '<button class="btn btn-sm">Add a counter</button></div>' +
+    '<div class="panel-body tight"><table class="tbl"><thead><tr>' +
+    '<th>Label</th><th>State</th><th>Serving now</th><th></th></tr></thead><tbody>' +
+    cs.map(c => {
+      const at = entriesFor().find(e => e.counter===c.id && (e.status==="serving"||e.status==="called"));
+      return '<tr><td><input class="input" style="min-height:36px;max-width:210px" value="' + esc(c.label) + '"></td>' +
+        '<td><label class="choice ' + (c.open?"is-on":"") + '" style="min-height:36px;padding:5px 11px">' +
+          '<input type="checkbox" ' + (c.open?"checked":"") + '> ' + (c.open?"Open":"Closed") + '</label></td>' +
+        '<td class="nm">' + (at ? esc(nameOf(at)) : '<span class="soft" style="font-family:var(--ui);font-size:.875rem;font-weight:400">Nobody</span>') + '</td>' +
+        '<td style="text-align:right"><button class="btn btn-sm btn-ghost">Save</button></td></tr>';
+    }).join("") + '</tbody></table></div>' +
+    spec('Labels are branch data, not code. The seeded defaults are <code>Counter 1</code>, <code>Counter 2</code>, <code>Counter 3</code>; a branch that calls them Teller 1 or Window A renames them here and every surface follows.') +
+  '</div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Service types</span>' +
+    '<button class="btn btn-sm">Add a service type</button></div>' +
+    '<div class="provisional-note">' + ICON.info + '<div><b>Provisional.</b> ' + esc(PROVISIONAL_NOTE) + '</div></div>' +
+    '<div class="panel-body tight"><table class="tbl"><thead><tr>' +
+    '<th>Label shown to people</th><th>Key</th><th class="num">In line now</th><th></th></tr></thead><tbody>' +
+    SERVICE_TYPES.map(s => '<tr><td><input class="input" style="min-height:36px;max-width:250px" value="' + esc(s.label) + '"></td>' +
+      '<td><code style="font-size:.82rem;color:var(--slate)">' + s.code + '</code></td>' +
+      '<td class="num">' + queueFor().filter(e=>e.st===s.code).length + '</td>' +
+      '<td style="text-align:right"><button class="btn btn-sm btn-ghost">Save</button></td></tr>').join("") +
+    '</tbody></table></div>' +
+    spec('<b>R-I</b>: <code>provisional:true</code> and <code>provisionalNote</code> arrive with the list from <code>GET /api/service-types</code>, so the disclaimer is rendered from the payload rather than typed into the page. ' +
+         'Codes are stable keys and are not editable; only the display label is.') +
+  '</div>';
+}
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   ADMIN — multi-branch. Endpoints do not exist yet (gap s6); the screens are
+   designed through that gap so the aggregation has a shape to satisfy.
+   ========================================================================== */
+function screenNetwork(){
+  const ov = DB.overview;
+  if (S.mode === "loading" || !ov) return dashSkeleton();
+  if (!ov.length) return '<div class="empty"><h3>No branches are set up</h3>' +
+    '<p>Add a branch to start. Each one gets its own line, its own counters and its own record.</p></div>';
+
+  const rows = ov.map(function(b){
+    const inLine = b.waiting + b.provisional + b.called + b.serving;
+    return { b:b, q:inLine, strain: inLine >= 8 };
+  });
+  const totalLine = rows.reduce(function(a,r){ return a+r.q; },0);
+  const totalServed = rows.reduce(function(a,r){ return a+r.b.servedToday; },0);
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">All branches</h2>' +
+    '<span class="dense muted">' + ov.length + (ov.length===1?' branch':' branches') + ' &middot; Jamaica</span></div>' +
+    '<div class="dense soft">Live, ' + S.clock + '</div></div>' +
+
+  '<div class="figures">' +
+    fig("In line, everywhere", totalLine, "right now", "") +
+    fig("Served today", totalServed, "across all branches", "accent") +
+    fig("No-shows today", rows.reduce(function(a,r){ return a+r.b.noshowToday; },0), "called and did not come", "") +
+    fig("Left the line today", rows.reduce(function(a,r){ return a+r.b.leftToday; },0), "gave up before being called", "") +
+  '</div>' +
+
+  '<div class="branch-cards">' + rows.map(function(r){
+    const cls = r.strain ? "is-strained" : "";
+    return '<button class="bcard ' + cls + '" data-act="drill" data-loc="' + r.b.locationId + '">' +
+      '<div class="bcard-head"><div class="bcard-name">' + esc(r.b.name) + '</div>' +
+        '<div class="plate-meta" style="margin-top:6px">' +
+          '<span class="branch-state">Serving today</span>' +
+          '<span class="dot"></span><span>' + esc(r.b.timezone) + '</span></div></div>' +
+      '<div class="bcard-figs">' +
+        '<div><div class="label">In line</div><div class="v"' + (r.strain?' style="color:var(--ochre)"':'') + '>' + r.q + '</div></div>' +
+        '<div><div class="label">Served</div><div class="v">' + r.b.servedToday + '</div></div>' +
+        '<div><div class="label">Counters open</div><div class="v">' + r.b.countersOpen +
+          '<span style="font-size:.62em;font-weight:500;color:var(--slate-soft)"> of ' + r.b.countersTotal + '</span></div></div>' +
+      '</div>' +
+      '<div class="bcard-foot">' + (r.strain
+        ? '<span style="color:var(--ochre);font-weight:600">Line is building</span>'
+        : '<span class="soft">Running normally</span>') +
+        '<span style="margin-left:auto;font-weight:600">Open branch &rarr;</span></div>' +
+    '</button>';
+  }).join("") + '</div>' +
+  spec('<b>GET /api/admin/overview</b> &mdash; one aggregation call, R-F clean. Nothing here is computed in the browser from N separate calls.');
+}
+
+function screenBranchDetail(){
+  const ov = DB.overview;
+  if (S.mode === "loading" || !ov) return dashSkeleton();
+  if (!S.drillLoc && ov.length) S.drillLoc = ov[0].locationId;
+  const b = ov.find(function(x){ return x.locationId === S.drillLoc; });
+  if (!b) return dashSkeleton();
+  const q = DB.drill ? DB.drill.queue : null;
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l">' +
+    '<button class="btn btn-sm btn-ghost" data-act="goto" data-screen="network">&larr; All branches</button>' +
+    '<h2 class="screen-title">' + esc(b.name) + '</h2></div>' +
+    '<div class="choice-row">' + ov.map(function(x){
+      return '<button class="btn btn-sm' + (x.locationId===S.drillLoc?" btn-primary":"") + '" data-act="drill" data-loc="' + x.locationId + '">' + esc(x.name.replace(" Branch","")) + '</button>';
+    }).join("") + '</div></div>' +
+  '<p class="section-note" style="margin-bottom:16px">Read-only. An administrator watching a branch does not reach into its line &mdash; the people who can see the counter are the people who can act on it.</p>' +
+
+  '<div class="figures">' +
+    fig("In line", b.waiting + b.provisional + b.called + b.serving, "right now", "") +
+    fig("Served", b.servedToday, "today", "accent") +
+    fig("No-show", b.noshowToday, "today", "warn") +
+    fig("Counters open", b.countersOpen + " of " + b.countersTotal, "at this branch", "") +
+  '</div>' +
+  (q === null
+    ? dashSkeleton()
+    : q.length
+      ? '<div class="panel"><div class="panel-head"><span class="label">The line at ' + esc(b.name) + '</span></div>' +
+        '<ul class="line" style="padding:0 13px">' + q.map(function(e,i){ return entryRow(e,i,false); }).join("") + '</ul></div>'
+      : '<div class="empty"><h3>No one is in line at ' + esc(b.name) + '</h3><p>The branch is quiet and the counters are clear.</p></div>');
+}
+
+function screenCompare(){
+  const ov = DB.overview;
+  if (S.mode === "loading" || !ov) return dashSkeleton();
+  const metrics = [
+    { m:"In line now",     v:function(b){ return String(b.waiting + b.provisional + b.called + b.serving); } },
+    { m:"Served today",    v:function(b){ return String(b.servedToday); } },
+    { m:"No-shows today",  v:function(b){ return String(b.noshowToday); } },
+    { m:"Left the line",   v:function(b){ return String(b.leftToday); } },
+    { m:"Counters open",   v:function(b){ return b.countersOpen + " of " + b.countersTotal; } }
+  ];
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Comparison</h2>' +
+    '<span class="dense muted">Today</span></div></div>' +
+  '<p class="section-note" style="margin-bottom:18px">No composite score, on purpose: ranking branches on one number invites gaming the exact thing this product exists to keep honest.</p>' +
+  '<div class="panel"><div class="panel-body tight"><table class="tbl cmp"><thead><tr>' +
+    '<th style="width:38%">Metric</th>' + ov.map(function(b){ return '<th class="num">' + esc(b.name.replace(" Branch","")) + '</th>'; }).join("") +
+    '</tr></thead><tbody>' +
+    metrics.map(function(r){
+      return '<tr><td class="lead"><span>' + esc(r.m) + '</span></td>' +
+        ov.map(function(b){ return '<td class="num strong">' + r.v(b) + '</td>'; }).join("") + '</tr>';
+    }).join("") +
+  '</tbody></table></div></div>' +
+  spec('<b>GET /api/admin/overview</b>. Wait and adherence columns arrive when the cross-branch window aggregation is built; this table shows only what the API answers today rather than inventing the rest.');
+}
+
+/* ==========================================================================
+   THE CONTEXT RAIL
+   ========================================================================== */
+function renderRail(){
+  const rail = $("#railCol");
+  const hide = (S.role === "admin" && S.screen !== "branch");
+  document.body.classList.toggle("no-rail", hide);
+  if (hide){ rail.style.display = "none"; return; }
+  rail.style.display = "";
+  const locId = (S.role==="admin" && S.screen==="branch") ? S.drillLoc : S.loc;
+
+  if (S.mode === "loading"){
+    rail.innerHTML = '<div class="stack">' + [1,2,3].map(()=>'<div class="panel"><div class="panel-body">' +
+      '<div class="skel" style="width:48%"></div><div class="skel" style="width:82%;margin-top:12px;height:20px"></div>' +
+      '<div class="skel" style="width:66%;margin-top:10px"></div></div></div>').join("") + '</div>';
+    return;
+  }
+
+  const est = getEstimate(locId);
+  const t = S.mode === "empty" ? { joined:0, served:0, noshow:0, left:0 } : DB.totals[locId];
+  const q = S.mode === "empty" ? [] : DB.entries.filter(e => e.loc===locId && ACTIVE.includes(e.status));
+
+  const estBlock =
+    '<div class="estimate' + (est.refused ? " is-refused" : "") + '">' +
+      '<div class="label">Wait estimate</div>' +
+      '<div class="dense soft" style="margin-top:2px">' + (est.refused ? "What we can honestly say" : "For the next person called") + '</div>' +
+      '<div class="estimate-value">' + esc(est.rendered) + '</div>' +
+      '<div class="basis"><span class="label-quiet">Basis</span><span>' + esc(est.basis) + '</span></div>' +
+    '</div>' +
+    spec('<b>R-G</b>: the estimate is displayed exactly as the API renders it. There is no code path in this component that produces a single number, ' +
+         'and the refusal is styled as an <b>answer</b>, not an empty state. <code>basis</code> is always shown, so a range can be argued with.');
+
+  const totalsBlock =
+    '<div class="panel"><div class="panel-head"><span class="label">Today at this branch</span></div>' +
+    '<div class="panel-body tight"><table class="tbl">' +
+      '<tr><td>In line now</td><td class="num strong">' + q.length + '</td></tr>' +
+      '<tr><td>Joined today</td><td class="num strong">' + t.joined + '</td></tr>' +
+      '<tr><td>Served</td><td class="num strong" style="color:var(--green)">' + t.served + '</td></tr>' +
+      '<tr><td>No-show</td><td class="num strong">' + t.noshow + '</td></tr>' +
+      '<tr><td>Left the line</td><td class="num strong">' + t.left + '</td></tr>' +
+    '</table></div></div>';
+
+  const logBlock =
+    '<div class="panel"><div class="panel-head"><span class="label">What the branch did</span></div>' +
+    '<div class="panel-body"><ul class="log">' +
+      DB.log.slice(0,7).map(e => '<li><span class="t">' + e.t + '</span>' +
+        '<span class="ev ' + (e.kind==="over"?"over":e.kind==="step"?"step":"") + '">' + e.text + '</span></li>').join("") +
+    '</ul></div></div>';
+
+  const svcBlock =
+    '<div class="panel"><div class="panel-head"><span class="label">Service types</span></div>' +
+    '<div class="provisional-note">' + ICON.info + '<div>' + esc(PROVISIONAL_NOTE) + '</div></div>' +
+    '<div class="panel-body tight"><table class="tbl">' +
+      SERVICE_TYPES.map(s => '<tr><td>' + esc(s.label) + '</td>' +
+        '<td class="num strong">' + q.filter(e=>e.st===s.code).length + '</td></tr>').join("") +
+    '</table></div></div>';
+
+  rail.innerHTML = '<div class="stack">' + estBlock + totalsBlock + logBlock + svcBlock + '</div>';
+}
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   OUT-OF-ORDER MODAL (I7)
+   The confirm button cannot be reached until a named approver exists.
+   ========================================================================== */
+let ooTarget = null;
+function openOverride(id){
+  ooTarget = id;
+  const e = DB.entries.find(x=>x.id===id);
+  const waiting = queueFor().filter(x=>x.status==="waiting");
+  const ahead = waiting.indexOf(e);
+  const aheadNames = waiting.slice(0, ahead).map(x=>nameOf(x));
+  const managers = STAFF.filter(s=>s.role==="manager"||s.role==="admin");
+
+  $("#modalRoot").innerHTML =
+  '<div class="scrim" data-act="scrim"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ooTitle">' +
+    '<div class="modal-head"><div class="label" style="color:var(--ochre-text)">Out-of-order call</div>' +
+      '<h2 class="screen-title" id="ooTitle">Call ' + esc(nameOf(e)) + ' ahead of the line</h2></div>' +
+    '<div class="modal-body">' +
+      '<div class="consequence">This call passes <strong>' + ahead + ' ' + (ahead===1?"person":"people") + '</strong> who joined before ' +
+        esc(nameOf(e)) + ':<br><span class="muted">' + esc(aheadNames.join(", ")) + '</span><br><br>' +
+        'They keep their places. They wait longer. The record will show your name, the approver, and the reason, for as long as this branch keeps records.</div>' +
+      '<div class="field"><label for="ooApprover">Who approved this call</label>' +
+        '<select class="select" id="ooApprover">' +
+          '<option value="">Choose the person who approved it</option>' +
+          managers.map(m=>'<option value="' + esc(m.name + ", " + m.title) + '">' + esc(m.name) + ' &mdash; ' + esc(m.title) + '</option>').join("") +
+          '<option value="__other">Someone else, type the name</option>' +
+        '</select>' +
+        '<div class="hint">A role is not an approver. This records a person.</div></div>' +
+      '<div class="field" id="ooOtherWrap" style="display:none"><label for="ooOther">Name and title</label>' +
+        '<input class="input" id="ooOther" placeholder="Full name, job title" autocomplete="off"></div>' +
+      '<div class="field" style="margin-bottom:0"><label for="ooReason">Reason</label>' +
+        '<textarea class="textarea" id="ooReason" placeholder="What made this call necessary. Written in plain words, for someone reading it in six months."></textarea></div>' +
+    '</div>' +
+    '<div class="modal-foot">' +
+      '<button class="btn" data-act="close-modal">Cancel</button>' +
+      '<button class="btn btn-ochre" id="ooConfirm" disabled>Approve and call</button>' +
+    '</div>' +
+  '</div></div>';
+
+  const sel = $("#ooApprover"), other = $("#ooOther"), wrap = $("#ooOtherWrap"),
+        reason = $("#ooReason"), confirm = $("#ooConfirm");
+  function sync(){
+    const named = sel.value === "__other" ? other.value.trim() : sel.value.trim();
+    wrap.style.display = sel.value === "__other" ? "" : "none";
+    confirm.disabled = !(named && reason.value.trim());
+    confirm.textContent = named ? "Approve as " + named.split(",")[0] + " and call" : "Approve and call";
+  }
+  sel.addEventListener("change", sync);
+  other.addEventListener("input", sync);
+  reason.addEventListener("input", sync);
+  confirm.addEventListener("click", function(){
+    const named = sel.value === "__other" ? other.value.trim() : sel.value.trim();
+    confirm.disabled = true;
+    callOutOfOrder(ooTarget, named, reason.value.trim()).then(function(res){
+      closeModal();
+      S.refusal = res.ok ? null : res.reason;
+      render();
+    });
+  });
+  sel.focus();
+}
+function closeModal(){ $("#modalRoot").innerHTML = ""; ooTarget = null; }
+
+/* ==========================================================================
+   MAIN RENDER + ROUTING
+   ========================================================================== */
+const VIEWS = {
+  board: screenBoard, reception: screenReception, served: screenServed,
+  dashboard: screenDashboard, adherence: screenAdherence, approvals: screenApprovals,
+  closeofday: screenCloseOfDay, setup: screenSetup,
+  network: screenNetwork, branch: screenBranchDetail, compare: screenCompare
+};
+function render(){
+  if (!SCREENS[S.role].some(s => s.id === S.screen)) S.screen = SCREENS[S.role][0].id;
+  renderChrome();
+  renderCounters();
+  $("#mainCol").innerHTML = (VIEWS[S.screen] || screenBoard)();
+  renderRail();
+  document.body.classList.toggle("show-spec", S.showSpec);
+}
+
+/* ==========================================================================
+   EVENTS
+   ========================================================================== */
+document.addEventListener("click", function(ev){
+  const roleBtn = ev.target.closest(".role-tab");
+  if (roleBtn){
+    S.role = roleBtn.dataset.role; S.screen = SCREENS[S.role][0].id; S.refusal = null;
+    render(); ensureScreenData().then(paintSafe); return;
+  }
+
+  const subBtn = ev.target.closest(".sub-tab");
+  if (subBtn){
+    S.screen = subBtn.dataset.screen; S.refusal = null;
+    render(); ensureScreenData().then(paintSafe); return;
+  }
+
+  const el = ev.target.closest("[data-act]");
+  if (!el) return;
+  const act = el.dataset.act;
+
+  if (act === "scrim" && ev.target === el){ closeModal(); return; }
+  if (act === "close-modal"){ closeModal(); return; }
+  if (act === "dismiss"){ S.refusal = null; render(); return; }
+  if (act === "goto"){ S.screen = el.dataset.screen; S.refusal = null; render(); return; }
+  if (act === "drill"){
+    S.drillLoc = el.dataset.loc; S.screen = "branch"; S.refusal = null; DB.drill = null;
+    render(); ensureScreenData().then(paintSafe); return;
+  }
+
+  if (act === "call-next"){
+    callNext(el.dataset.counter).then(function(res){
+      S.refusal = res.ok ? null : res.reason; render();
+    });
+    return;
+  }
+  if (act === "call-this"){
+    /* "Call to my counter" is offered only on the next person in line, so it
+       IS call-next addressed to my counter. One write path, not two. */
+    callNext(S.myCounter).then(function(res){
+      S.refusal = res.ok ? null : res.reason; render();
+    });
+    return;
+  }
+  if (act === "call-oo"){ openOverride(el.dataset.id); return; }
+
+  if (act === "verb"){
+    entryVerb(el.dataset.id, el.dataset.verb).then(function(res){
+      S.refusal = res.ok ? null : res.reason; render();
+    });
+    return;
+  }
+  if (act === "join"){
+    const g = guardWrite();
+    if (g){ S.refusal = g.reason; render(); return; }
+    const nm = ($("#wName")||{}).value || "";
+    const ph = ($("#wPhone")||{}).value || "";
+    const svCode = ($("#wSvc")||{}).value || "";
+    const svc = SERVICE_TYPES.find(function(x){ return x.code === svCode; });
+    const ch = (document.querySelector('input[name="ch"]:checked')||{}).value || "reception";
+    apiPOST("/api/join", {
+      locationId: S.loc, channel: ch,
+      contact: ph.trim() || null,
+      name: nm.trim() || null,
+      serviceTypeId: svc ? svc.id : null
+    }).then(function(res){
+      if (!res.ok){ S.refusal = toRefusal(res); render(); return; }
+      refreshSnapshot().then(function(){
+        S.screen = "board"; S.refusal = null; render();
+      });
+    });
+    return;
+  }
+  if (act === "approve-req"){
+    const a = DB.approvals.find(x=>x.id===el.dataset.id);
+    const e = DB.entries.find(x=>x.t===a.t);
+    const res = callOutOfOrder(e.id, me().name + ", " + me().title, a.reason);
+    DB.approvals = DB.approvals.filter(x=>x.id!==a.id);
+    S.refusal = res.ok ? null : res.reason;
+    S.screen = "board"; render(); return;
+  }
+  if (act === "decline-req"){
+    const a = DB.approvals.find(x=>x.id===el.dataset.id);
+    DB.approvals = DB.approvals.filter(x=>x.id!==el.dataset.id);
+    DB.log.unshift({ t:S.clock, kind:"over",
+      text:"Out-of-order request for <b>" + esc(a.who) + " (" + a.t + ")</b> was declined by <b>" + esc(me().name) + "</b>. Position in line is unchanged." });
+    render(); return;
+  }
+  if (act === "close-day"){
+    const g = guardWrite();
+    if (g){ S.refusal = g.reason; render(); return; }
+    const still = queueFor().length;
+    apiPOST("/api/close-of-day", { locationId: S.loc, actor: me().name }).then(function(res){
+      if (!res.ok){ S.refusal = toRefusal(res); render(); return; }
+      refreshSnapshot().then(function(){
+        S.refusal = { code:200, title:"The day is closed",
+          detail:"Recorded at " + S.clock + " by " + me().name + ". " + still + " people were still in line at close and are recorded that way." };
+        render();
+      });
+    });
+    return;
+  }
+});
+document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
+
+/* choice chip visual state */
+document.addEventListener("change", function(ev){
+  const c = ev.target.closest(".choice");
+  if (!c) return;
+  const nm = ev.target.name;
+  if (nm) $$('input[name="' + nm + '"]').forEach(i => i.closest(".choice").classList.toggle("is-on", i.checked));
+  else c.classList.toggle("is-on", ev.target.checked);
+});
+
+/* The design render's review scaffolding (state switcher, armed 409, data
+   reset, spec toggle) is gone: state comes from reality now. */
+
+$("#themeToggle").addEventListener("click", function(){
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  this.setAttribute("aria-pressed", String(!dark));
+  this.textContent = dark ? "Light" : "Dark";
+  render();
+});
+
+/* the branch name takes a seat in the section bar once the plate scrolls off */
+let ticking = false;
+window.addEventListener("scroll", function(){
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(function(){
+    document.body.classList.toggle("scrolled", window.scrollY > 130);
+    ticking = false;
+  });
+}, { passive:true });
+
+/* ==========================================================================
+   BOOT. Paint the loading skeletons immediately, then let the snapshot land.
+   The poll keeps the console honest about a moving branch; it skips the
+   repaint while the operator is typing or a modal is open, so a refresh can
+   never eat a half-typed name or an approver mid-selection.
+   ========================================================================== */
+function tickClock(){ S.clock = jamaicaClock(); }
+function paintSafe(){
+  const a = document.activeElement;
+  const typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT");
+  if (typing || ooTarget !== null) return;
+  render();
+}
+tickClock();
+render();
+refreshSnapshot().then(function(){ tickClock(); render(); ensureScreenData().then(paintSafe); });
+setInterval(function(){
+  tickClock();
+  refreshSnapshot().then(function(){ ensureScreenData().then(paintSafe); });
+}, 5000);
+</script>
+<script>
+"use strict";
+/* ==========================================================================
+   DESIGN SYSTEM SHEET
+   Not a product screen. This is the spec CC implements against, kept in the
+   same file as the thing it describes so the two cannot drift.
+   ========================================================================== */
+const SWATCHES_DARK = [
+  { n:"Tobacco",  h:"#16120B", t:"--manila",  u:"Chrome. Branch plate, counter strip, the section bar. The deepest surface in the room, and the one that names where you are." },
+  { n:"Field",    h:"#262117", t:"--field",   u:"Working surface, lifted off the chrome so the line reads as something laid on the desk rather than cut into it." },
+  { n:"Bone",     h:"#EFE7D4", t:"--ink",     u:"Body text and the spine. Warm bone, never pure white. Pure white on a warm dark ground buzzes after an hour of it." },
+  { n:"Green",    h:"#4FBC8C", t:"--green",   u:"The institution, IN SERVICE, and the single primary action. Lifted far enough to work as text and as a button fill with dark ink on it." },
+  { n:"Ochre",    h:"#D9A24A", t:"--ochre",   u:"Human judgment. Stepped over, override, unconfirmed. The detour in the spine is drawn in this and nothing else is." },
+  { n:"Claret",   h:"#E0857A", t:"--claret",  u:"Refusal. 409 reasons, no-shows. Warmed toward clay on dark so it stays calm instead of turning into a warning light." },
+  { n:"Slate",    h:"#ABA089", t:"--slate",   u:"Secondary text. Still warm-cast so it belongs to the tobacco family instead of reading as a foreign gray." },
+  { n:"Hair",     h:"#3A3222", t:"--hair",    u:"Hairline rules. The system still separates with lines, not shadows. The dark theme changes the palette, never the structure." }
+];
+const SWATCHES_LIGHT = [
+  { n:"Manila",  h:"#EAE1CE", t:"--manila",  u:"Chrome. Branch plate, counter strip, anything that names the place rather than carries data." },
+  { n:"Field",   h:"#FBF9F3", t:"--field",   u:"Working surface. The line, tables, forms. Cooler than the chrome on purpose so dense text stays legible all day." },
+  { n:"Ink",     h:"#191509", t:"--ink",     u:"Body text and the spine. Warm black, never pure black — this is printed-ledger ink." },
+  { n:"Green",   h:"#0B4B33", t:"--green",   u:"The institution, IN SERVICE, and the single primary action on any screen. Only one green button is ever visible in the line." },
+  { n:"Ochre",   h:"#8B530B", t:"--ochre",   u:"Human judgment. Stepped over, out-of-order override, unconfirmed, provisional. Never decorative — if it is ochre, a person has to decide something." },
+  { n:"Claret",  h:"#8A2A20", t:"--claret",  u:"Refusal. 409 reasons, no-shows, degraded. Calm and dark, not alarm red — a bank does not shout at its staff." },
+  { n:"Slate",   h:"#57503F", t:"--slate",   u:"Secondary text. Warm gray-brown so it belongs to the manila family instead of reading as a foreign gray." },
+  { n:"Hair",    h:"#CFC5AC", t:"--hair",    u:"Hairline rules. This system separates with lines, not with shadows and cards." }
+];
+
+function screenDesignSystem(){
+  return '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Design system</h2>' +
+    '<span class="dense muted">HMS-FE-001</span></div>' +
+    '<div class="dense soft">Review artifact &mdash; not a product screen</div></div>' +
+
+  '<p class="section-note" style="margin-bottom:20px">Civic ledger structure, Caribbean editorial warmth. The organising idea is that this product claims to make fairness visible, so the queue is drawn as a physical line of service that you can watch bend when someone is passed. Both palettes are one system: identical structure, type and spacing, with only the ground and the three meaning colours re-tuned. Switch between them in the review bar.</p>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Colour &mdash; eight values, each with one job</span>' +
+    '<span class="dense soft">' + (document.documentElement.getAttribute("data-theme")==="dark" ? "Dark palette" : "Light palette") + '</span></div>' +
+  '<div class="panel-body"><div class="ds-grid">' +
+    (document.documentElement.getAttribute("data-theme")==="dark" ? SWATCHES_DARK : SWATCHES_LIGHT).map(c =>
+    '<div class="sw"><i style="background:' + c.h + '"></i><div class="sw-b">' +
+      '<div class="sw-n">' + c.n + '</div><div class="sw-h">' + c.h + ' &middot; ' + c.t + '</div>' +
+      '<div class="sw-u">' + esc(c.u) + '</div></div></div>').join("") + '</div>' +
+    '<p class="section-note" style="margin-top:14px"><b>The rule that matters:</b> colour is never decorative here. A reviewer should be able to point at any coloured pixel and be told which product truth put it there.</p>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Type &mdash; two families, no more</span></div>' +
+  '<div class="panel-body">' +
+    '<div class="spec-row"><div class="label">Fraunces</div><div>' +
+      '<div class="plate-name">Half-Way Tree Branch</div>' +
+      '<div class="dense muted" style="margin-top:6px">Display only, used with restraint: branch name, screen titles, figures, and the person a counter is serving. Its optical-size axis lets the branch plate read as a carved sign while the same face at small sizes reads as a form header.</div>' +
+    '</div></div>' +
+    '<div class="spec-row"><div class="label">Public Sans</div><div>' +
+      '<div style="font-size:1.05rem">Everything else. A civic typeface, drawn for government service interfaces.</div>' +
+      '<div class="dense muted" style="margin-top:6px">Tabular lining numerals are on globally, so ticket numbers and times align down a column without a monospace face. There is deliberately no third family and no mono &mdash; the alignment problem it would have solved is already solved.</div>' +
+    '</div></div>' +
+    '<div class="spec-row"><div class="label">Scale</div><div class="dense">' +
+      '<div style="margin-bottom:5px"><span class="plate-name" style="font-size:1.6rem">Plate 25&ndash;38px</span></div>' +
+      '<div style="margin-bottom:5px"><span class="screen-title">Screen title 18&ndash;22px</span></div>' +
+      '<div style="margin-bottom:5px">Body 15px &middot; Dense 14px</div>' +
+      '<div><span class="label">Label 11px uppercase, 0.11em tracked</span></div>' +
+    '</div></div>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">The spine &mdash; the one thing this console is remembered by</span></div>' +
+  '<div class="panel-body">' +
+    '<p class="section-note" style="margin-bottom:16px">One continuous rule runs the length of the queue. Every entry is a node on it, in join order. When call-next passes someone, <b>the line itself swerves around them</b> and their node is left detached in ochre. The step-over is geometry, not a badge, because badges are the thing staff stop seeing by week three.</p>' +
+    '<ul class="line" style="max-width:820px">' +
+      entryRow({id:"ds1",t:"A-106",name:"Novlette Ferguson",ch:"reception",st:"deposit_withdrawal",status:"waiting",at:"09:22",counter:null,survey:null},0,false).replace(/data-act="[^"]*"/g,'data-act="noop"') +
+      entryRow({id:"ds2",t:"A-105",name:"Kemar Douglas",ch:"whatsapp",st:"general_enquiry",status:"provisional",at:"09:19",counter:null,survey:null,
+        steppedOver:true, steppedOverReason:"Passed for Counter 1 at 09:38. This entry has not been confirmed, so call-next moved to the next confirmed person in line."},1,false).replace(/data-act="[^"]*"/g,'data-act="noop"') +
+      entryRow({id:"ds3",t:"A-103",name:"Devon Clarke",ch:"qr",st:"card_services",status:"serving",at:"09:07",counter:"c1",survey:null},2,false).replace(/data-act="[^"]*"/g,'data-act="noop"') +
+    '</ul>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">State vocabulary &mdash; every screen owes all five</span></div>' +
+  '<div class="panel-body tight"><table class="tbl"><thead><tr><th style="width:130px">State</th><th>What the screen does</th><th style="width:30%">Why it is not optional</th></tr></thead><tbody>' +
+    '<tr><td class="strong">Live</td><td>Renders API state. The queue in join order, counters showing who they hold.</td><td class="muted">&mdash;</td></tr>' +
+    '<tr><td class="strong">Empty</td><td>An invitation to act, not a shrug. Names the one thing the operator can do next.</td><td class="muted">An empty branch is normal at 08:31, not an error.</td></tr>' +
+    '<tr><td class="strong">Loading</td><td>Skeletons in the exact shape of the rows they replace. No spinner, no layout jump.</td><td class="muted">A clerk on a branch connection sees this state hundreds of times a day.</td></tr>' +
+    '<tr><td class="strong">Refusal</td><td>A claret strip in place, stating what happened and what would work instead. Never a modal, never a stack trace.</td><td class="muted">A 409 is an answer. Presenting it as a crash teaches staff to distrust the screen.</td></tr>' +
+    '<tr><td class="strong">Degraded</td><td>Dark banner, last-known state dimmed and dated, every write control disabled. The estimate refuses.</td><td class="muted">The one state where the product must say what it does not know, loudly.</td></tr>' +
+  '</tbody></table></div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Invariant &rarr; the thing on screen that carries it</span></div>' +
+  '<div class="panel-body tight"><table class="tbl"><thead><tr><th style="width:90px">Rule</th><th style="width:36%">What it says</th><th>How the design holds it</th></tr></thead><tbody>' +
+    '<tr><td class="strong">I1</td><td>Order is join time.</td><td>The line renders in join order and <b>ships no sort control at all</b>. There is no column header to click, so there is no way to arrive at a view that hides the order.</td></tr>' +
+    '<tr><td class="strong">I8</td><td>Stepped-over is visible.</td><td>The spine detours around the entry and the node detaches. A full-width note beneath states who was passed, for which counter, at what time, and why &mdash; and carries the two buttons that resolve it.</td></tr>' +
+    '<tr><td class="strong">I7</td><td>Out-of-order needs a named approver.</td><td>The only modal in the system. It names the people being passed, and the confirm button is disabled until an approver is chosen and a reason typed. A role is explicitly rejected as an approver.</td></tr>' +
+    '<tr><td class="strong">R-G</td><td>Estimate is a range or an honest refusal.</td><td>The rail renders the API string verbatim. The refusal is typeset as an <b>answer</b>, not an empty state, and <code>basis</code> is always shown so a range can be argued with. No component in this file can produce a single number.</td></tr>' +
+    '<tr><td class="strong">R-I</td><td>Service types are provisional.</td><td>The disclaimer sits <b>inside</b> the same bordered region as the list, above the items, rendered from <code>provisionalNote</code> in the payload. It travels with the data on all three surfaces that show it.</td></tr>' +
+    '<tr><td class="strong">Survey</td><td>Two questions, asked once, never fabricated.</td><td>Half-answered is its own figure and is excluded from both rates. The served table shows "1 of 2 &mdash; left half-answered" as a real outcome rather than rounding it to complete or hiding it.</td></tr>' +
+    '<tr><td class="strong">Auth</td><td>Hiding a button is not access control.</td><td>Role tabs change what is <b>offered</b>. Every refusal still has to happen on the API. The Admin views are read-only by design, so an admin cannot reach into a line they cannot see.</td></tr>' +
+  '</tbody></table></div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">Components</span></div>' +
+  '<div class="panel-body">' +
+    '<div class="spec-row"><div class="label">Buttons</div><div><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="btn btn-primary">Primary</button><button class="btn">Default</button>' +
+      '<button class="btn btn-ochre">Override</button><button class="btn btn-danger">Destructive</button>' +
+      '<button class="btn btn-ghost">Quiet</button><button class="btn" disabled>Disabled</button></div>' +
+      '<div class="dense muted" style="margin-top:8px">36px tall, 44px on touch. One primary per screen region.</div></div></div>' +
+    '<div class="spec-row"><div class="label">Status</div><div><div style="display:flex;gap:7px;flex-wrap:wrap">' +
+      ["provisional","waiting","called","serving","served","noshow","left"].map(k =>
+        '<span class="pill pill-' + k + '">' + statusPill({status:k}) + '</span>').join("") + '</div></div></div>' +
+    '<div class="spec-row"><div class="label">Refusal</div><div>' +
+      '<div class="refusal" style="margin:0">' + ICON.warn +
+      '<div><div class="r-title">You cannot complete an entry that is not being served<span class="r-code">HTTP 409</span></div>' +
+      '<div>Devon Clarke (A-103) is waiting in line right now. The line is showing you the current state.</div></div></div></div></div>' +
+    '<div class="spec-row"><div class="label">Grid</div><div class="dense">Radius 2&ndash;3px throughout. Separation by hairline rule, not shadow. The single elevation in the system is the override modal, because it is the single action that should feel heavier than the rest.</div></div>' +
+    '<div class="spec-row"><div class="label">Motion</div><div class="dense">Four movements only: the detour draws in over 560ms when a step-over appears, the called node fills, the refusal strip slides 6px, the modal lifts. Everything is under 240ms except the detour, which is the one moment worth watching. All of it is off under <code>prefers-reduced-motion</code>.</div></div>' +
+  '</div></div>' +
+
+  '<div class="panel"><div class="panel-head"><span class="label">What the build still owes (section 6)</span></div>' +
+  '<div class="panel-body tight"><table class="tbl"><thead><tr><th style="width:30%">Gap</th><th>Designed through it as</th></tr></thead><tbody>' +
+    '<tr><td class="strong">Guest name</td><td>Every row leads with a name and falls back to the ticket number in italics when there is none. Reception join captures it. Needs an additive migration plus the WhatsApp prompt.</td></tr>' +
+    '<tr><td class="strong">Prod counters and service types</td><td>Counter labels and service labels are read as data everywhere; Counters and services is the screen that edits them. Needs the gated prod seed.</td></tr>' +
+    '<tr><td class="strong">Admin endpoints</td><td>All branches and Comparison assume one cross-branch aggregation call, not a fan-out of per-location calls.</td></tr>' +
+    '<tr><td class="strong">Clerk auth</td><td>Three role surfaces exist. Session validation stays server-side; the tabs are convenience, not a boundary.</td></tr>' +
+    '<tr><td class="strong">Close of day</td><td>Placed under Manager per the CC recommendation. Flagged as unruled. If it moves, the still-in-line warning moves with it.</td></tr>' +
+    '<tr><td class="strong">One prod branch</td><td>Admin is designed against the three local seed branches. Half-Way Tree is the only one marked prod on the plate.</td></tr>' +
+  '</tbody></table></div></div>';
+}
+
+/* The design-system panel, its toggle, and its render wrapper were review
+   scaffolding and are gone. screenDesignSystem above is unreferenced and kept
+   only as documentation of the token system. */
+</script>
+</body>
+</html>

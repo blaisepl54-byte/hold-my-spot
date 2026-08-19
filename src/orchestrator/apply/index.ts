@@ -256,6 +256,9 @@ export async function joinQueue(input: {
   // FE-001. The guest's name, captured at reception or asked for over
   // WhatsApp. Nullable: declining a name is allowed, not an error.
   readonly name?: string | null;
+  // FE-001. What they came for, chosen at reception. The measurement layer
+  // keys on it (C3 buckets); null is honest for channels that do not ask.
+  readonly serviceTypeId?: string | null;
   // C4. The estimate the customer was given, stored so calibration can compare
   // what we SAID against what happened. Recomputing it later would compare
   // today's model against today's data and always look accurate.
@@ -269,15 +272,16 @@ export async function joinQueue(input: {
     // joined_at is deliberately absent: the server supplies it and hms_rw
     // cannot write it, which is what makes I1 structural rather than polite.
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO entries (location_id, status, channel, contact, name,
+      `INSERT INTO entries (location_id, status, channel, contact, name, service_type_id,
                             predicted_low_minutes, predicted_high_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [
         input.locationId,
         status,
         input.channel,
         input.contact ?? null,
         input.name ?? null,
+        input.serviceTypeId ?? null,
         input.predictedLowMinutes ?? null,
         input.predictedHighMinutes ?? null,
       ],
@@ -415,6 +419,9 @@ export async function callNext(input: {
   readonly actor?: string | null;
   readonly approver?: string | null;
   readonly outOfOrderEntryId?: string;
+  // I7. The reason the human gave, written to the record verbatim. The modal
+  // requires one; the default below only covers non-UI callers.
+  readonly reason?: string | null;
   readonly counter?: string | null;
 }): Promise<Applied<CallNextOutcome>> {
   return withQueueLock<CallNextOutcome>(input.locationId, async (client) => {
@@ -456,7 +463,9 @@ export async function callNext(input: {
         trigger: "out_of_order_call",
         actor: input.actor ?? null,
         approver: input.approver ?? null,
-        reason: "out-of-order call",
+        reason: input.reason !== undefined && input.reason !== null && input.reason.trim() !== ""
+          ? input.reason.trim().slice(0, 300)
+          : "out-of-order call",
         counter: input.counter ?? null,
         counterId,
       });

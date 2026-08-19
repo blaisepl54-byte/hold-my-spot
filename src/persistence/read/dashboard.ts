@@ -99,10 +99,22 @@ export type Calibration = {
   readonly accuracy: Rate;
 };
 
+export type SurveyFigures = {
+  readonly sent: number;
+  readonly full: number;
+  readonly halfAnswered: number;
+  readonly neverAnswered: number;
+  readonly achievedYes: number;
+  readonly achievedOf: number;
+  readonly waitMatched: number;
+  readonly waitMatchedOf: number;
+};
+
 export type Dashboard = {
   readonly windowDays: number;
   readonly counters: readonly CounterPanel[];
   readonly serviceTypes: readonly ServiceTypePanel[];
+  readonly surveys: SurveyFigures;
   readonly calibration: Calibration;
   readonly notes: readonly string[];
 };
@@ -283,10 +295,44 @@ export async function readDashboard(
   const cal = calib.rows[0];
   const predicted = Number(cal?.predicted ?? "0");
 
+  // FE-001. Branch-wide survey truth, four figures. FULL means both questions
+  // answered; HALF means exactly one, and a half-answered survey is excluded
+  // from BOTH rates rather than rounded into either. Nothing is back-filled:
+  // a rate that looks worse but is true beats one that reads well and is not.
+  const sv = await pool.query<{
+    sent: string; full: string; half: string; never: string;
+    q1_yes: string; q1_of: string; q2_match: string; q2_of: string;
+  }>(
+    `SELECT count(*)::text AS sent,
+            count(*) FILTER (WHERE s.responded_at IS NOT NULL
+              AND s.achieved IS NOT NULL AND s.wait_match IS NOT NULL)::text AS full,
+            count(*) FILTER (WHERE s.responded_at IS NOT NULL
+              AND (s.achieved IS NULL) <> (s.wait_match IS NULL))::text AS half,
+            count(*) FILTER (WHERE s.responded_at IS NULL)::text AS never,
+            count(*) FILTER (WHERE s.achieved)::text AS q1_yes,
+            count(*) FILTER (WHERE s.achieved IS NOT NULL)::text AS q1_of,
+            count(*) FILTER (WHERE s.wait_match = 'as_expected')::text AS q2_match,
+            count(*) FILTER (WHERE s.wait_match IS NOT NULL)::text AS q2_of
+       FROM surveys s JOIN entries e ON e.id = s.entry_id
+      WHERE e.location_id = $1 AND s.sent_at > now() - make_interval(days => $2::int)`,
+    [locationId, windowDays],
+  );
+  const svRow = sv.rows[0];
+
   return {
     windowDays,
     counters: counterPanels,
     serviceTypes: typePanels,
+    surveys: {
+      sent: Number(svRow?.sent ?? "0"),
+      full: Number(svRow?.full ?? "0"),
+      halfAnswered: Number(svRow?.half ?? "0"),
+      neverAnswered: Number(svRow?.never ?? "0"),
+      achievedYes: Number(svRow?.q1_yes ?? "0"),
+      achievedOf: Number(svRow?.q1_of ?? "0"),
+      waitMatched: Number(svRow?.q2_match ?? "0"),
+      waitMatchedOf: Number(svRow?.q2_of ?? "0"),
+    },
     calibration: {
       predicted,
       within: Number(cal?.within ?? "0"),

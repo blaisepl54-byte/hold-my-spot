@@ -64,12 +64,13 @@ export type QueueRow = {
   readonly counter: string | null;
   readonly contact: string | null;
   readonly name: string | null;
+  readonly service_type_id: string | null;
 };
 
 export async function readQueue(locationId: string): Promise<readonly QueueRow[]> {
   const result = await readPool().query<QueueRow>(
     `SELECT id, status, channel, joined_at, confirmed_at, undeliverable_at,
-            prompt_delivered_at, left_reason, counter, contact, name
+            prompt_delivered_at, left_reason, counter, contact, name, service_type_id
        FROM entries
       WHERE location_id = $1
         AND status IN ('provisional', 'waiting', 'called', 'serving')
@@ -119,6 +120,7 @@ export async function readLocations(): Promise<readonly LocationRow[]> {
 // nobody can see is an audit trail nobody checks.
 export type EventRow = {
   readonly id: string;
+  readonly entry_id: string | null;
   readonly kind: string;
   readonly from_status: string | null;
   readonly to_status: string | null;
@@ -133,7 +135,7 @@ export async function readEvents(
   limit = 30,
 ): Promise<readonly EventRow[]> {
   const result = await readPool().query<EventRow>(
-    `SELECT id, kind, from_status, to_status, actor, reason, approver, occurred_at
+    `SELECT id, entry_id, kind, from_status, to_status, actor, reason, approver, occurred_at
        FROM events WHERE location_id = $1 ORDER BY id DESC LIMIT $2`,
     [locationId, limit],
   );
@@ -248,4 +250,41 @@ export async function readEntryByContact(
     [locationId, contact],
   );
   return result.rows[0];
+}
+
+// FE-001 console. Today's served list with its survey truth, joined server
+// side so the Served-today screen is one read rather than an N+1 fan-out.
+// "Today" is the BRANCH's day, not UTC's.
+export type ServedTodayRow = {
+  readonly id: string;
+  readonly name: string | null;
+  readonly contact: string | null;
+  readonly channel: string;
+  readonly counter: string | null;
+  readonly joined_at: Date;
+  readonly serving_ended_at: Date | null;
+  readonly service_type_id: string | null;
+  readonly survey_sent: boolean;
+  readonly survey_responded: boolean;
+  readonly achieved: boolean | null;
+  readonly wait_match: string | null;
+};
+
+export async function readServedToday(locationId: string): Promise<readonly ServedTodayRow[]> {
+  const result = await readPool().query<ServedTodayRow>(
+    `SELECT e.id, e.name, e.contact, e.channel, e.counter, e.joined_at,
+            e.serving_ended_at, e.service_type_id,
+            (s.id IS NOT NULL)           AS survey_sent,
+            (s.responded_at IS NOT NULL) AS survey_responded,
+            s.achieved, s.wait_match
+       FROM entries e
+       LEFT JOIN surveys s ON s.entry_id = e.id
+       JOIN locations l ON l.id = e.location_id
+      WHERE e.location_id = $1
+        AND e.status = 'served'
+        AND e.serving_ended_at >= (date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone)
+      ORDER BY e.serving_ended_at DESC`,
+    [locationId],
+  );
+  return result.rows;
 }

@@ -151,6 +151,7 @@ export const ENTRY_WRITERS_PERMITTED: readonly { readonly path: string; readonly
   },
   { path: "scripts/b6-console-proof.ts", why: "fixture teardown as hms_ddl" },
   { path: "scripts/p2-auth-proof.ts", why: "fixture teardown as hms_ddl; every authorization probe is driven over HTTP through the gated routes" },
+  { path: "scripts/seed-prod-showcase.ts", why: "showcase fixtures as hms_ddl, King B-approved 2026-08-18: backdated history REQUIRES writing joined_at and serving windows, which hms_rw structurally cannot (B2). Refuses to run twice." },
   { path: "scripts/c1-service-record-proof.ts", why: "fixture teardown as hms_ddl; the lifecycle itself is driven through named operations, never by writing the timestamps directly" },
   { path: "scripts/c2-survey-proof.ts", why: "fixture teardown as hms_ddl" },
   { path: "scripts/c3-wait-time-proof.ts", why: "fixture teardown as hms_ddl" },

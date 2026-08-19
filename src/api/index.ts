@@ -40,6 +40,7 @@ import {
   readEvents,
   readLocations,
   readQueue,
+  readServedToday,
   readServiceTypes,
   readSurveyStatus,
 } from "../persistence/read/index.ts";
@@ -307,7 +308,9 @@ export function createApp(): express.Express {
   });
 
   app.post("/api/join", desk, async (req, res) => {
-    const body = req.body as { locationId?: string; channel?: string; contact?: string; name?: string };
+    const body = req.body as {
+      locationId?: string; channel?: string; contact?: string; name?: string; serviceTypeId?: string;
+    };
     if (typeof body.locationId !== "string" || !isChannel(body.channel)) {
       res.status(400).json({ ok: false, reason: "locationId and a valid channel are required" });
       return;
@@ -325,6 +328,7 @@ export function createApp(): express.Express {
       // FE-001. Reception captures the name at the desk. Trimmed and bounded
       // in the orchestrator's insert path identically to recordEntryName.
       name: typeof body.name === "string" && body.name.trim() !== "" ? body.name.trim().slice(0, 80) : null,
+      serviceTypeId: typeof body.serviceTypeId === "string" && body.serviceTypeId !== "" ? body.serviceTypeId : null,
       actor: body.channel === "whatsapp" ? "customer" : "reception",
       predictedLowMinutes: atJoin.kind === "estimate" ? atJoin.lowMinutes : null,
       predictedHighMinutes: atJoin.kind === "estimate" ? atJoin.highMinutes : null,
@@ -375,7 +379,9 @@ export function createApp(): express.Express {
   // not authenticated. The precedence makes the upgrade automatic the moment
   // enforcement turns on, with no route change.
   app.post("/api/call-entry", manager, async (req, res) => {
-    const body = req.body as { locationId?: string; entryId?: string; counter?: string; approver?: string };
+    const body = req.body as {
+      locationId?: string; entryId?: string; counter?: string; approver?: string; reason?: string;
+    };
     if (typeof body.locationId !== "string" || typeof body.entryId !== "string") {
       res.status(400).json({ ok: false, reason: "locationId and entryId are required" });
       return;
@@ -388,6 +394,7 @@ export function createApp(): express.Express {
         actor: session?.userId ?? "operator",
         approver: session?.userId ?? body.approver ?? null,
         outOfOrderEntryId: body.entryId,
+        reason: typeof body.reason === "string" ? body.reason : null,
         counter: body.counter ?? null,
       }),
     );
@@ -452,6 +459,17 @@ export function createApp(): express.Express {
   // because a customer answering a survey must never be asked to make an
   // account.
   // Whether this entry has an unanswered survey. Read-only, entry-scoped.
+  // FE-001. Today's served list for the console, survey truth included, one
+  // call. Desk-gated like every staff read.
+  app.get("/api/served-today", desk, async (req, res) => {
+    const locationId = String(req.query["locationId"] ?? "");
+    if (locationId === "") {
+      res.status(400).json({ ok: false, reason: "locationId is required" });
+      return;
+    }
+    res.json({ ok: true, value: await readServedToday(locationId) });
+  });
+
   app.get("/api/survey-status", async (req, res) => {
     const entryId = String(req.query["entryId"] ?? "");
     if (entryId === "") {

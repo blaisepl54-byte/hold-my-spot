@@ -17,6 +17,8 @@ export type BranchOverview = {
   readonly servedToday: number;
   readonly noshowToday: number;
   readonly leftToday: number;
+  readonly countersOpen: number;
+  readonly countersTotal: number;
 };
 
 export async function readAdminOverview(): Promise<readonly BranchOverview[]> {
@@ -31,6 +33,8 @@ export async function readAdminOverview(): Promise<readonly BranchOverview[]> {
     served_today: string;
     noshow_today: string;
     left_today: string;
+    counters_open: string;
+    counters_total: string;
   }>(
     `SELECT l.id AS location_id,
             l.name,
@@ -44,10 +48,17 @@ export async function readAdminOverview(): Promise<readonly BranchOverview[]> {
             count(*) FILTER (WHERE e.status = 'noshow'
               AND e.joined_at >= date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone) AS noshow_today,
             count(*) FILTER (WHERE e.status = 'left'
-              AND e.joined_at >= date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone) AS left_today
+              AND e.joined_at >= date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone) AS left_today,
+            cc.counters_open,
+            cc.counters_total
        FROM locations l
        LEFT JOIN entries e ON e.location_id = l.id
-      GROUP BY l.id, l.name, l.timezone
+       LEFT JOIN LATERAL (
+         SELECT count(*) FILTER (WHERE c.active)::text AS counters_open,
+                count(*)::text                          AS counters_total
+           FROM counters c WHERE c.location_id = l.id
+       ) cc ON true
+      GROUP BY l.id, l.name, l.timezone, cc.counters_open, cc.counters_total
       ORDER BY l.name`,
   );
   return result.rows.map((r) => ({
@@ -61,5 +72,7 @@ export async function readAdminOverview(): Promise<readonly BranchOverview[]> {
     servedToday: Number(r.served_today),
     noshowToday: Number(r.noshow_today),
     leftToday: Number(r.left_today),
+    countersOpen: Number(r.counters_open),
+    countersTotal: Number(r.counters_total),
   }));
 }

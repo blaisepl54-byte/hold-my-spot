@@ -87,11 +87,16 @@ export type DayTotals = {
 };
 
 export async function readDayTotals(locationId: string): Promise<DayTotals> {
+  // "Today" means the BRANCH's day, not all time. Unfiltered, the backdated
+  // showcase history leaked into "Served today" and the board disagreed with
+  // the admin overview about the same fact (41 vs 0, observed live 2026-08-18).
   const result = await readPool().query<{ status: string; n: string }>(
-    `SELECT status, count(*)::text AS n
-       FROM entries
-      WHERE location_id = $1 AND status IN ('served', 'noshow', 'left')
-      GROUP BY status`,
+    `SELECT e.status, count(*)::text AS n
+       FROM entries e
+       JOIN locations l ON l.id = e.location_id
+      WHERE e.location_id = $1 AND e.status IN ('served', 'noshow', 'left')
+        AND e.joined_at >= (date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone)
+      GROUP BY e.status`,
     [locationId],
   );
   const by = new Map(result.rows.map((r) => [r.status, Number(r.n)]));

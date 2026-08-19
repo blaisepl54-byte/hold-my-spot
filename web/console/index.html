@@ -1164,12 +1164,19 @@ async function refreshSnapshot(){
       if (!S.loc && DB.locations.length) S.loc = DB.locations[0].id;
     }
     if (!S.loc) throw new Error("no location");
-    const [ctr, svc, board, served] = await Promise.all([
+    /* Board, counters and service types are LOAD-BEARING: without them there
+       is no console and failing to degraded is honest. Served-today is not --
+       a served list that cannot load must cost the served screen its rows,
+       never the line its existence. Found live: the first deploy of this file
+       raced the backend that serves /api/served-today, and the whole console
+       sat in loading because a subordinate read was treated as critical. */
+    const [ctr, svc, board] = await Promise.all([
       apiGET("/api/counters?locationId=" + S.loc),
       apiGET("/api/service-types?locationId=" + S.loc),
-      apiGET("/api/board?locationId=" + S.loc),
-      apiGET("/api/served-today?locationId=" + S.loc)
+      apiGET("/api/board?locationId=" + S.loc)
     ]);
+    const served = await apiGET("/api/served-today?locationId=" + S.loc)
+      .catch(function(){ return { ok:false, value: [] }; });
     SERVICE_TYPES = (svc.value||[]).map(t => ({ id:t.id, code:t.code, label:t.label }));
     PROVISIONAL_NOTE = svc.provisionalNote || PROVISIONAL_NOTE;
     DB.counters[S.loc] = (ctr.value||[]).map(c => ({ id:c.label, label:c.label, open:c.active }));

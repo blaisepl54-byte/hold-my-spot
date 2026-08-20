@@ -95,7 +95,13 @@ export async function readDayTotals(locationId: string): Promise<DayTotals> {
        FROM entries e
        JOIN locations l ON l.id = e.location_id
       WHERE e.location_id = $1 AND e.status IN ('served', 'noshow', 'left')
-        AND e.joined_at >= (date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone)
+        -- Served counts by WHEN SERVICE ENDED; a customer who joined yesterday
+        -- and was served this morning was served TODAY. The other exits keep
+        -- joined_at, the only timestamp those rows carry. Found live when three
+        -- customers served today vanished from the count for having joined on
+        -- the seed date.
+        AND (CASE WHEN e.status = 'served' THEN coalesce(e.serving_ended_at, e.joined_at) ELSE e.joined_at END)
+            >= (date_trunc('day', now() AT TIME ZONE l.timezone) AT TIME ZONE l.timezone)
       GROUP BY e.status`,
     [locationId],
   );

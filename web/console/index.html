@@ -1003,12 +1003,15 @@ const S = {
   mode: "loading",       // live | loading | degraded — empty falls out of DATA, never a mode
   showSpec: false,
   refusal: null,         // {title, detail, code}
+  phoneEntryId: null,    // the simulated handset follows the most recent remote entry
+  phoneInbox: [],
+  phoneSurveyOpen: false,
   lastGood: "--:--",
   clock: "--:--",
   drillLoc: null
 };
 const SCREENS = {
-  clerk:   [ {id:"board", label:"The line"}, {id:"reception", label:"Reception join"}, {id:"served", label:"Served today"} ],
+  clerk:   [ {id:"board", label:"The line"}, {id:"reception", label:"Reception join"}, {id:"served", label:"Served today"}, {id:"phone", label:"Customer phone"} ],
   manager: [ {id:"board", label:"The line"}, {id:"dashboard", label:"Dashboard"}, {id:"adherence", label:"Adherence"},
              {id:"approvals", label:"Out-of-order requests", badge:true}, {id:"closeofday", label:"Close of day"},
              {id:"setup", label:"Counters and services"} ],
@@ -1298,6 +1301,23 @@ async function ensureScreenData(){
       const res = await apiGET("/api/" + which + "?locationId=" + S.loc + "&windowDays=7");
       DB[which] = res.value || null;
     }
+    if (S.screen === "phone"){
+      /* The handset follows the most recent WhatsApp entry: active first, else
+         one that was served and still has its survey open. */
+      const remote = entriesFor().filter(function(e){ return e.ch === "whatsapp"; });
+      const active = remote.filter(function(e){ return ACTIVE.includes(e.status); });
+      const track = active.length ? active[active.length-1]
+                  : remote.length ? remote[remote.length-1] : null;
+      S.phoneEntryId = track ? track.id : null;
+      if (S.phoneEntryId){
+        const [inbox, sv] = await Promise.all([
+          apiGET("/api/inbox?entryId=" + S.phoneEntryId),
+          apiGET("/api/survey-status?entryId=" + S.phoneEntryId)
+        ]);
+        S.phoneInbox = inbox.value || [];
+        S.phoneSurveyOpen = !!(sv.value && sv.value.open);
+      } else { S.phoneInbox = []; S.phoneSurveyOpen = false; }
+    }
     if (S.role === "admin"){
       const ov = await apiGET("/api/admin/overview");
       DB.overview = ov.value || [];
@@ -1400,7 +1420,10 @@ function renderChrome(){
        the API refuses them regardless. Hiding a button is not access control,
        and neither is disabling one. */
     if (SESSION_USER && SESSION_USER.role){
-      const rank = { desk:1, manager:2, admin:3 };
+      /* Both vocabularies rank identically: tab ids say clerk, sessions say
+         desk. The same mismatch that killed desk sign-ins also wrongly
+         disabled the clerk tab for managers. One map carries both words. */
+      const rank = { clerk:1, desk:1, manager:2, admin:3 };
       const can = rank[b.dataset.role] <= rank[SESSION_USER.role];
       b.toggleAttribute("disabled", !can);
     }
@@ -1663,6 +1686,58 @@ function screenServed(){
     '<thead><tr><th>Ticket</th><th>Name</th><th>Service</th><th>Joined</th><th>Outcome</th><th>Survey</th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table></div></div>' +
   spec('Survey column shows the true count, not a rate. <b>A half-answered survey stays half-answered</b> &mdash; the second question is never inferred from the first and the row is never rounded up to complete.');
+}
+
+/* ==========================================================================
+   SCREEN: CUSTOMER PHONE — the simulated handset, restored.
+   This is the fallback surface that lets the deployed system run the COMPLETE
+   demo moment with Twilio unavailable, including the customer side. It reads
+   the same inbox the simulated transport writes and offers only the actions a
+   customer's thumb has: join, YES, the two survey answers. While Twilio is
+   carrying the traffic this inbox is empty ON PURPOSE and says so; nothing
+   here touches or races the live path.
+   ========================================================================== */
+function screenPhone(){
+  const e = S.phoneEntryId ? DB.entries.find(function(x){ return x.id === S.phoneEntryId; }) : null;
+  const dis = S.mode === "degraded" ? " disabled" : "";
+
+  const bubbles = S.phoneInbox.length
+    ? S.phoneInbox.map(function(m){
+        return '<div style="background:var(--field-sunk);border:1px solid var(--hair-field);border-radius:10px 10px 10px 3px;padding:10px 13px;margin-bottom:9px;max-width:85%;font-size:var(--t-dense)">' +
+          esc(m.body || "") + '</div>';
+      }).join("")
+    : '<div class="empty" style="margin:0"><h3>No messages on this handset</h3><p>' +
+      (e ? "Messages appear here when the SIMULATED transport carries them. If Twilio is carrying the traffic, the real handset gets them instead \u2014 which is the point."
+         : "Join the line as a WhatsApp customer below and the conversation starts here.") + '</p></div>';
+
+  let actions = "";
+  if (!e){
+    actions = '<button class="btn btn-primary" data-act="phone-join"' + dis + '>Join the line by WhatsApp (simulated)</button>';
+  } else if (e.status === "provisional"){
+    actions = '<button class="btn btn-primary" data-act="phone-yes"' + dis + '>Reply YES \u2014 confirm my place</button>' +
+              '<button class="btn btn-ghost" data-act="phone-leave"' + dis + '>Leave the line</button>';
+  } else if (S.phoneSurveyOpen){
+    actions = '<div class="dense soft" style="margin-bottom:8px">Reply to the survey:</div>' +
+      '<button class="btn" data-act="phone-survey" data-achieved="true" data-wait="as_expected"' + dis + '>Yes \u00b7 about right</button>' +
+      '<button class="btn" data-act="phone-survey" data-achieved="true" data-wait="longer"' + dis + '>Yes \u00b7 longer than expected</button>' +
+      '<button class="btn" data-act="phone-survey" data-achieved="false" data-wait="as_expected"' + dis + '>No \u00b7 about right</button>';
+  } else if (ACTIVE.includes(e.status)){
+    actions = '<div class="dense soft">Waiting for the branch. Status: ' + esc(e.status) + '.</div>' +
+              (e.status === "waiting" ? '<button class="btn btn-ghost" data-act="phone-leave"' + dis + '>Leave the line</button>' : '');
+  } else {
+    actions = '<div class="dense soft">This visit is finished.</div>' +
+              '<button class="btn btn-primary" data-act="phone-join"' + dis + '>Join again (new simulated customer)</button>';
+  }
+
+  return refusalHTML() +
+  '<div class="section-head"><div class="sh-l"><h2 class="screen-title">Customer phone</h2>' +
+    '<span class="dense muted">Simulated handset</span></div>' +
+    '<div class="dense soft">' + (e ? "Following " + esc(nameOf(e)) + " \u00b7 " + esc(e.status) : "No remote customer yet") + '</div></div>' +
+  '<p class="section-note" style="margin-bottom:16px">The fallback surface. When Twilio is unavailable the whole demo \u2014 including the customer\u2019s side \u2014 runs through this screen against the same API, the same queue, the same rules.</p>' +
+  '<div class="panel" style="max-width:560px"><div class="panel-head"><span class="label">Conversation</span>' +
+    '<span class="dense soft">' + (e ? "entry " + e.t : "") + '</span></div>' +
+    '<div class="panel-body">' + bubbles + '</div></div>' +
+  '<div style="display:flex;gap:9px;flex-wrap:wrap;max-width:560px">' + actions + '</div>';
 }
 
 /* ==========================================================================
@@ -2128,7 +2203,7 @@ function closeModal(){ $("#modalRoot").innerHTML = ""; ooTarget = null; }
    MAIN RENDER + ROUTING
    ========================================================================== */
 const VIEWS = {
-  board: screenBoard, reception: screenReception, served: screenServed,
+  board: screenBoard, reception: screenReception, served: screenServed, phone: screenPhone,
   dashboard: screenDashboard, adherence: screenAdherence, approvals: screenApprovals,
   closeofday: screenCloseOfDay, setup: screenSetup,
   network: screenNetwork, branch: screenBranchDetail, compare: screenCompare
@@ -2229,6 +2304,43 @@ document.addEventListener("click", function(ev){
       text:"Out-of-order request for <b>" + esc(a.who) + " (" + a.t + ")</b> was declined by <b>" + esc(me().name) + "</b>. Position in line is unchanged." });
     render(); return;
   }
+  if (act === "phone-join"){
+    const g = guardWrite();
+    if (g){ S.refusal = g.reason; render(); return; }
+    /* R11: synthetic contact only. Derived from the clock so repeat demos do
+       not collide, and never a real person's number. */
+    const synth = "+1876555" + String(Date.now()).slice(-4);
+    apiPOST("/api/join", { locationId: S.loc, channel: "whatsapp", contact: synth, name: null })
+      .then(function(res){
+        if (!res.ok){ S.refusal = toRefusal(res); render(); return; }
+        refreshSnapshot().then(function(){ ensureScreenData().then(function(){ S.refusal = null; render(); }); });
+      });
+    return;
+  }
+  if (act === "phone-yes"){
+    entryVerb(S.phoneEntryId, "confirm").then(function(res){
+      S.refusal = res.ok ? null : res.reason;
+      ensureScreenData().then(function(){ render(); });
+    });
+    return;
+  }
+  if (act === "phone-leave"){
+    entryVerb(S.phoneEntryId, "leave").then(function(res){
+      S.refusal = res.ok ? null : res.reason;
+      ensureScreenData().then(function(){ render(); });
+    });
+    return;
+  }
+  if (act === "phone-survey"){
+    apiPOST("/api/survey", {
+      entryId: S.phoneEntryId, locationId: S.loc,
+      achieved: el.dataset.achieved === "true", waitMatch: el.dataset.wait
+    }).then(function(res){
+      S.refusal = res.ok ? null : toRefusal(res);
+      ensureScreenData().then(function(){ render(); });
+    });
+    return;
+  }
   if (act === "close-day"){
     const g = guardWrite();
     if (g){ S.refusal = g.reason; render(); return; }
@@ -2319,7 +2431,11 @@ if (!clerkEnabled()){
       window.Clerk.mountUserButton(document.getElementById("signInMount"));
       return;
     }
-    S.role = SESSION_USER.role;
+    /* Clerk's role vocabulary says "desk"; the console's screen registry says
+       "clerk" (the render's word). Translate at the ONE boundary. Found by the
+       fallback walk: a desk sign-in resolved SCREENS["desk"], undefined, and
+       the console died on the role it exists to serve. */
+    S.role = SESSION_USER.role === "desk" ? "clerk" : SESSION_USER.role;
     startConsole();
   }).catch(function(){
     /* Clerk unreachable: with auth REQUIRED on the API this console cannot

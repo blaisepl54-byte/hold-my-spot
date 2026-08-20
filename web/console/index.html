@@ -1306,8 +1306,13 @@ async function ensureScreenData(){
          one that was served and still has its survey open. */
       const remote = entriesFor().filter(function(e){ return e.ch === "whatsapp"; });
       const active = remote.filter(function(e){ return ACTIVE.includes(e.status); });
+      /* Active customer wins, newest join. Otherwise the NEWEST finished one:
+         the served list arrives newest-first, so it is the FIRST finished
+         match, not the last -- picking the last tracked a customer served
+         hours ago whose survey was long closed. Found on the deployed walk. */
+      const finished = remote.filter(function(e){ return !ACTIVE.includes(e.status); });
       const track = active.length ? active[active.length-1]
-                  : remote.length ? remote[remote.length-1] : null;
+                  : finished.length ? finished[0] : null;
       S.phoneEntryId = track ? track.id : null;
       if (S.phoneEntryId){
         const [inbox, sv] = await Promise.all([

@@ -168,7 +168,11 @@ export function createApp(): express.Express {
       // The origin is echoed conditionally, so caches must key on it.
       res.set("Vary", "Origin");
       res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
+      // Authorization listed EXPLICITLY: a Bearer token makes every request
+      // non-simple, so the browser preflights asking for it, and a CORS layer
+      // that only allows Content-Type silently kills the authenticated console
+      // at the network layer. Found by the P2 frontend E2E, not by reading.
+      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
     if (req.method === "OPTIONS") {
       // Preflights are answered for the allowed origin and left bare for every

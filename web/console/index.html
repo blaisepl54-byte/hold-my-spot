@@ -1022,7 +1022,12 @@ const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":
 const svcLabel = code => (SERVICE_TYPES.find(x=>x.code===code)||{}).label || code;
 const loc = id => DB.locations.find(l=>l.id===(id||S.loc));
 const counters = id => DB.counters[id||S.loc] || [];
-const me = () => STAFF.find(s=>s.role===S.role) || STAFF[0];
+/* The REAL person once signed in; the presentation roster only before
+   Clerk is enabled. Post-enforcement, actor and approver identity come from
+   the SESSION on the server anyway -- this name is display, not authority. */
+const me = () => SESSION_USER && SESSION_USER.role
+  ? { name: SESSION_USER.name, initials: SESSION_USER.initials, title: { desk:"Desk Clerk", manager:"Branch Manager", admin:"Administrator" }[SESSION_USER.role] }
+  : (STAFF.find(s=>s.role===S.role) || STAFF[0]);
 const ACTIVE = ["provisional","waiting","called","serving"];
 
 const ICON = {
@@ -1048,14 +1053,84 @@ function spec(html){ return '<div class="spec">'+html+'</div>'; }
    ========================================================================== */
 const API_BASE = (window.HMS_API_BASE || "").replace(/\/+$/, "");
 
+/* ==========================================================================
+   P2 AUTH, frontend half. ACTIVE ONLY WHEN env.js CARRIES THE PUBLISHABLE
+   KEY; without it the console runs exactly as it did before Clerk existed.
+   The key is public by design (pk_test_/pk_live_); the SECRET key never
+   appears on this surface and the build's secret-split assertion fails the
+   deploy if it ever does.
+
+   The frontend HIDES AND ROUTES; it never decides. Every refusal happens on
+   the API, from the token's signature. A desk session that somehow reached
+   the admin tab would meet a 403 on the first read.
+   ========================================================================== */
+const CLERK_PK = window.HMS_CLERK_PK || "";
+let SESSION_USER = null;   /* {name, role, initials} once signed in */
+
+function clerkEnabled(){ return CLERK_PK !== ""; }
+
+function fapiDomain(){
+  /* The publishable key encodes the frontend API domain, base64 with a
+     trailing $: this derivation is Clerk's own documented scheme. */
+  try { return atob(CLERK_PK.replace(/^pk_(test|live)_/, "")).replace(/\$$/, ""); }
+  catch (e) { return ""; }
+}
+
+function loadClerk(){
+  return new Promise(function(resolve, reject){
+    const el = document.createElement("script");
+    el.src = "https://" + fapiDomain() + "/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
+    el.setAttribute("data-clerk-publishable-key", CLERK_PK);
+    el.onload = function(){ window.Clerk.load().then(resolve, reject); };
+    el.onerror = reject;
+    document.head.appendChild(el);
+  });
+}
+
+async function authToken(){
+  if (!clerkEnabled() || !window.Clerk || !window.Clerk.session) return null;
+  /* The hms template carries role from public_metadata. clerk-js caches and
+     refreshes these; one network hop a minute, not one per call. */
+  return window.Clerk.session.getToken({ template: "hms" });
+}
+
+function sessionFromClerk(){
+  const u = window.Clerk.user;
+  if (!u) return null;
+  const role = (u.publicMetadata || {}).role;
+  if (role !== "desk" && role !== "manager" && role !== "admin") return { name: u.fullName || u.username || "Signed in", role: null };
+  const name = u.fullName || u.username || role;
+  return {
+    name: name,
+    role: role,
+    initials: name.split(/\s+/).map(function(w){ return w[0]; }).join("").slice(0,2).toUpperCase()
+  };
+}
+
+function showSignInGate(message){
+  document.body.innerHTML =
+    '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--manila);color:var(--ink);font-family:var(--ui)">' +
+      '<div style="font-family:var(--display);font-size:1.6rem">Hold My Spot</div>' +
+      (message ? '<div style="max-width:420px;text-align:center;color:var(--slate)">' + esc(message) + '</div>' : '') +
+      '<div id="signInMount"></div>' +
+    '</div>';
+  window.Clerk.mountSignIn(document.getElementById("signInMount"));
+}
+
 async function apiGET(path){
-  const r = await fetch(API_BASE + path, { headers: { "accept": "application/json" } });
+  const headers = { "accept": "application/json" };
+  const token = await authToken();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(API_BASE + path, { headers: headers });
   return r.json();
 }
 async function apiPOST(path, body){
+  const headers = { "content-type": "application/json" };
+  const token = await authToken();
+  if (token) headers["Authorization"] = "Bearer " + token;
   const r = await fetch(API_BASE + path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: headers,
     body: JSON.stringify(body || {})
   });
   return r.json();
@@ -1319,7 +1394,17 @@ function renderChrome(){
     ? '<span class="bc-dot"></span>' + esc(chipLoc.name)
     : '<span class="bc-dot"></span>All branches';
 
-  $$(".role-tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.role === S.role)));
+  $$(".role-tab").forEach(b => {
+    b.setAttribute("aria-selected", String(b.dataset.role === S.role));
+    /* With a session, tabs above the holder's rank are disabled AS A COURTESY;
+       the API refuses them regardless. Hiding a button is not access control,
+       and neither is disabling one. */
+    if (SESSION_USER && SESSION_USER.role){
+      const rank = { desk:1, manager:2, admin:3 };
+      const can = rank[b.dataset.role] <= rank[SESSION_USER.role];
+      b.toggleAttribute("disabled", !can);
+    }
+  });
 
   const pending = DB.approvals.length;
   $("#subnav").innerHTML = SCREENS[S.role].map(s =>
@@ -2205,13 +2290,43 @@ function paintSafe(){
   if (typing || ooTarget !== null) return;
   render();
 }
-tickClock();
-render();
-refreshSnapshot().then(function(){ tickClock(); render(); ensureScreenData().then(paintSafe); });
-setInterval(function(){
+function startConsole(){
   tickClock();
-  refreshSnapshot().then(function(){ ensureScreenData().then(paintSafe); });
-}, 5000);
+  render();
+  refreshSnapshot().then(function(){ tickClock(); render(); ensureScreenData().then(paintSafe); });
+  setInterval(function(){
+    tickClock();
+    refreshSnapshot().then(function(){ ensureScreenData().then(paintSafe); });
+  }, 5000);
+}
+
+if (!clerkEnabled()){
+  startConsole();
+} else {
+  loadClerk().then(function(){
+    if (!window.Clerk.session){
+      showSignInGate("");
+      window.Clerk.addListener(function(state){
+        if (state.session) window.location.reload();
+      });
+      return;
+    }
+    SESSION_USER = sessionFromClerk();
+    if (!SESSION_USER || !SESSION_USER.role){
+      /* Authenticated but authorized for NOTHING, same rule as the server:
+         a missing role never silently becomes desk. */
+      showSignInGate("This account has no branch role yet. Ask an administrator to assign one, then sign in again.");
+      window.Clerk.mountUserButton(document.getElementById("signInMount"));
+      return;
+    }
+    S.role = SESSION_USER.role;
+    startConsole();
+  }).catch(function(){
+    /* Clerk unreachable: with auth REQUIRED on the API this console cannot
+       act, and saying so beats a wall of 401s. */
+    showSignInGate("The sign-in service is unreachable. The console cannot start without it.");
+  });
+}
 </script>
 <script>
 "use strict";

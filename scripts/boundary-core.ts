@@ -104,6 +104,7 @@ const APPLY = "src/orchestrator/apply/";
 // ===========================================================================
 export const WRITE_POOL_IMPORTERS: readonly { readonly path: string; readonly why: string }[] = [
   { path: APPLY, why: "the single write path; the whole point of P3" },
+  { path: "scripts/d1-call-response-proof.ts", why: "teardown of the pool it drove through orchestrator/apply; every queue change in the proof goes through a named operation" },
   { path: WRITE, why: "intra-directory, X6: a module may import its own siblings" },
   {
     path: "scripts/b1-connection-proof.ts",
@@ -158,6 +159,8 @@ export const ENTRY_WRITERS_PERMITTED: readonly { readonly path: string; readonly
   { path: "scripts/c4-dashboard-proof.ts", why: "builds a controlled fixture as hms_ddl that FORCES the provisional, calibration and survey branches to fire; seeded data left them untested" },
   { path: "scripts/c5-adherence-proof.ts", why: "builds a fixture as hms_ddl that forces the unapproved-override defect path, which I7 makes unreachable through the application" },
   { path: "scripts/seed-demo.ts", why: "seeds SYNTHETIC service history as hms_ddl from pure values generated in src/synthetic. The order requires the seed to write; src/synthetic itself stays pure and is bound by X1." },
+  { path: "scripts/d1-call-response-proof.ts", why: "fixture teardown as hms_ddl, plus ONE backdating UPDATE on an events row so a deadline already in the past can be observed without the proof sleeping for two real minutes. Every queue state change is driven through named operations; nothing about the entry is written directly." },
+  { path: "scripts/reset-demo-branch.ts", why: "the video-take reset, commissioned 2026-09-05. Runs as hms_ddl and CANNOT go through the governed write for two independent reasons, either sufficient: it DELETES entries, which hms_rw lost in 002 for I1, and it backdates joined_at, which hms_rw cannot write for the same invariant. Scoped to one location id and to rows dated on or after a fixed demo epoch, so branch history is out of its reach by construction." },
 ];
 
 const permittedEntryWriter = (file: string): boolean =>

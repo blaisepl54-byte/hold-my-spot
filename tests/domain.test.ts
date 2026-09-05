@@ -17,6 +17,8 @@ import {
   releasedByCloseOfDay,
   selectNextToCall,
   sendAttemptsExhausted,
+  CALL_RESPONSE_SECONDS,
+  callDeadlinePassed,
   triggerForJoin,
 } from "../src/domain/index.ts";
 import type { QueueEntry } from "../src/domain/index.ts";
@@ -202,4 +204,87 @@ test("close_of_day is ungated: applying a published branch policy is not a rever
 
 test("close_of_day cannot touch a serving entry, enforced by the transition table itself", () => {
   assert.equal(checkTransition("serving", "left", "close_of_day", null).ok, false);
+});
+
+// ---------------------------------------------------------------------------
+// The call response window. Spec 2026-09-05-call-response-window-design.md.
+//
+// Deferral is NOT a status and NOT stored. It arrives on the entry as a derived
+// boolean and changes exactly one thing: whether the entry is callable right
+// now. joined_at is untouched on every path below, which is the whole point.
+// ---------------------------------------------------------------------------
+
+const at = (iso: string): Date => new Date(iso);
+
+test("both deferral transitions exist, called -> waiting, ungated", () => {
+  for (const trigger of ["customer_not_ready", "call_expiry"] as const) {
+    const check = checkTransition("called", "waiting", trigger, null);
+    assert.equal(check.ok, true, `${trigger} should be permitted without an approver`);
+  }
+});
+
+test("deferral invents no status: the set is still seven", () => {
+  const statuses = new Set<string>();
+  for (const t of TRANSITIONS) {
+    if (t.from !== null) statuses.add(t.from);
+    statuses.add(t.to);
+  }
+  assert.equal(statuses.size, 7);
+});
+
+test("the response window is 2 minutes, and is not the 300s grace window", () => {
+  assert.equal(CALL_RESPONSE_SECONDS, 120);
+});
+
+test("the deadline has not passed at 119 seconds and has at 121", () => {
+  const called = at("2026-09-05T10:00:00Z");
+  assert.equal(callDeadlinePassed(called, at("2026-09-05T10:01:59Z")), false);
+  assert.equal(callDeadlinePassed(called, at("2026-09-05T10:02:01Z")), true);
+});
+
+test("selectNextToCall steps over a deferred entry and takes the next", () => {
+  const entries: QueueEntry[] = [
+    { id: "a", status: "waiting", joinedAt: at("2026-09-05T09:00:00Z"), deferred: true },
+    { id: "b", status: "waiting", joinedAt: at("2026-09-05T09:05:00Z") },
+  ];
+  const result = selectNextToCall(entries);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.next.id, "b");
+    assert.deepEqual(result.steppedOver.map((e) => e.id), ["a"]);
+  }
+});
+
+test("an entry no longer deferred keeps its ORIGINAL place, it does not go to the back", () => {
+  const entries: QueueEntry[] = [
+    { id: "a", status: "waiting", joinedAt: at("2026-09-05T09:00:00Z"), deferred: false },
+    { id: "b", status: "waiting", joinedAt: at("2026-09-05T09:05:00Z") },
+  ];
+  const result = selectNextToCall(entries);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.next.id, "a");
+});
+
+test("when every waiting entry is deferred the earliest is callable, not empty_queue", () => {
+  const entries: QueueEntry[] = [
+    { id: "a", status: "waiting", joinedAt: at("2026-09-05T09:00:00Z"), deferred: true },
+    { id: "b", status: "waiting", joinedAt: at("2026-09-05T09:05:00Z"), deferred: true },
+  ];
+  const result = selectNextToCall(entries);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.next.id, "a");
+});
+
+test("a deferred entry never overtakes: provisional still steps over first", () => {
+  const entries: QueueEntry[] = [
+    { id: "p", status: "provisional", joinedAt: at("2026-09-05T08:00:00Z") },
+    { id: "a", status: "waiting", joinedAt: at("2026-09-05T09:00:00Z"), deferred: true },
+    { id: "b", status: "waiting", joinedAt: at("2026-09-05T09:05:00Z") },
+  ];
+  const result = selectNextToCall(entries);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.next.id, "b");
+    assert.deepEqual(result.steppedOver.map((e) => e.id), ["p", "a"]);
+  }
 });

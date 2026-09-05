@@ -31,7 +31,11 @@ export type InboundIntent =
 // of "yes" is a queue that loses people. Every keyword below is matched on a
 // normalised, punctuation-stripped string.
 const JOIN = ["join", "start", "queue", "line", "hold my spot", "holdmyspot"];
-const YES = ["yes", "y", "yeah", "yep", "confirm", "confirmed", "ok", "okay", "1"];
+// "ready" answers the call notification. It joins the affirmative set rather
+// than becoming an intent of its own, because it is unambiguous in every state
+// a customer can be in and a fourth meaning of "yes" would be a fourth thing
+// the orchestrator has to disambiguate for no gain.
+const YES = ["yes", "y", "yeah", "yep", "confirm", "confirmed", "ok", "okay", "1", "ready"];
 const NO = ["no", "n", "nope", "2"];
 const LEAVE = ["leave", "cancel", "stop", "exit", "remove me"];
 const SHORTER = ["shorter", "short", "quick", "quicker", "faster"];

@@ -137,3 +137,23 @@ test("an empty body yields no answers rather than defaults", () => {
   assert.equal(empty.achieved, undefined);
   assert.equal(empty.waitMatch, undefined);
 });
+
+// --- the call response window ---------------------------------------------
+
+test("READY parses as affirmative, in any case, with punctuation", () => {
+  for (const body of ["READY", "ready", "Ready!", " ready "]) {
+    assert.deepEqual(parseInbound(body), { kind: "affirmative" });
+  }
+});
+
+test("NO still parses as negative and is not swallowed by the name branch", () => {
+  assert.deepEqual(parseInbound("no"), { kind: "negative" });
+  assert.deepEqual(parseInbound("Nope"), { kind: "negative" });
+});
+
+test("a real name is still unknown text, so name capture keeps working", () => {
+  assert.deepEqual(parseInbound("Marcia Bennett"), {
+    kind: "unknown",
+    text: "Marcia Bennett",
+  });
+});

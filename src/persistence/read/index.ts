@@ -65,16 +65,37 @@ export type QueueRow = {
   readonly contact: string | null;
   readonly name: string | null;
   readonly service_type_id: string | null;
+  readonly deferred: boolean;
 };
 
 export async function readQueue(locationId: string): Promise<readonly QueueRow[]> {
+  // `deferred` is DERIVED, never stored. An entry is deferred when its most
+  // recent deferral event has no call at this branch recorded after it, which
+  // is the whole of "bumped down one slot": exactly one person overtakes them,
+  // and the moment that person is called the deferral is spent.
+  //
+  // Deriving it from the append-only log rather than a column is what keeps
+  // this feature free of a migration, and it means deferral cannot drift out of
+  // agreement with the fairness record, because it IS the fairness record.
+  // joined_at is not consulted and not touched: position is unchanged by
+  // deferral, only callability is.
   const result = await readPool().query<QueueRow>(
-    `SELECT id, status, channel, joined_at, confirmed_at, undeliverable_at,
-            prompt_delivered_at, left_reason, counter, contact, name, service_type_id
-       FROM entries
-      WHERE location_id = $1
-        AND status IN ('provisional', 'waiting', 'called', 'serving')
-      ORDER BY joined_at`,
+    `SELECT e.id, e.status, e.channel, e.joined_at, e.confirmed_at, e.undeliverable_at,
+            e.prompt_delivered_at, e.left_reason, e.counter, e.contact, e.name,
+            e.service_type_id,
+            EXISTS (
+              SELECT 1 FROM events d
+               WHERE d.entry_id = e.id
+                 AND d.kind IN ('customer_not_ready', 'call_expiry')
+                 AND NOT EXISTS (
+                   SELECT 1 FROM events c
+                    WHERE c.location_id = e.location_id
+                      AND c.kind IN ('call_next', 'out_of_order_call')
+                      AND c.occurred_at > d.occurred_at)) AS deferred
+       FROM entries e
+      WHERE e.location_id = $1
+        AND e.status IN ('provisional', 'waiting', 'called', 'serving')
+      ORDER BY e.joined_at`,
     [locationId],
   );
   return result.rows;

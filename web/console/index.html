@@ -1208,7 +1208,11 @@ function mapEntry(row, locId){
     contact: row.contact || null,
     survey: row.survey !== undefined ? row.survey : null,
     steppedOver: !!STEPPED[row.id],
-    steppedOverReason: STEPPED[row.id] || null
+    steppedOverReason: STEPPED[row.id] || null,
+    /* Derived server-side from the fairness log, never stored on the entry.
+       True means: called, did not answer or said not yet, so exactly one
+       person overtakes them. Their join time is untouched. */
+    deferred: !!row.deferred
   };
 }
 function mapEventLine(ev, byId){
@@ -1531,6 +1535,12 @@ function entryActions(e, isNext){
 
 function entryRow(e, i, isNext){
   const stepped = !!e.steppedOver;
+  /* A deferred entry takes the SAME detour rail a stepped-over one takes,
+     because it is the same fact about the line: this person is being passed
+     and is keeping their place. No new visual language is invented for it.
+     It keeps its actions, though, because unlike a provisional ghost it is a
+     confirmed customer the desk may still call. */
+  const deferred = !!e.deferred;
   const name = e.name
     ? esc(e.name)
     : '<span class="unnamed">No name yet. ' + esc(e.contact || "No contact on file either.") + '</span>';
@@ -1539,8 +1549,8 @@ function entryRow(e, i, isNext){
       : e.survey.waitMatch == null ? '<span class="sep"></span><span class="soft">Survey 1 of 2, left half-answered</span>'
       : '<span class="sep"></span><span class="soft">Survey 2 of 2</span>')
     : "";
-  return '<li class="entry st-' + e.status + (stepped ? " is-stepped" : "") + '">' +
-    '<div class="rail">' + (stepped ? DETOUR : "") + '<span class="rail-seg"></span><span class="node"></span></div>' +
+  return '<li class="entry st-' + e.status + (stepped || deferred ? " is-stepped" : "") + '">' +
+    '<div class="rail">' + (stepped || deferred ? DETOUR : "") + '<span class="rail-seg"></span><span class="node"></span></div>' +
     '<div class="ticket"><div class="ticket-no">' + e.t + '</div><div class="ticket-time">' + e.at + '</div></div>' +
     '<div class="who"><div class="who-name">' + name + '</div>' +
       '<div class="who-line">' +
@@ -1557,6 +1567,11 @@ function entryRow(e, i, isNext){
           (S.mode === "degraded" ? " disabled" : "") + '>Confirm and restore</button>' +
         '<button class="btn btn-sm btn-ghost" data-act="verb" data-verb="remove" data-id="' + e.id + '"' +
           (S.mode === "degraded" ? " disabled" : "") + '>Remove from line</button></div>') + '</div>' : "") +
+    (deferred && !stepped
+      ? '<div class="stepped-note"><b>Moved back one place</b>' +
+        'They were called and asked for more time, or did not reply within 2 minutes. ' +
+        'They keep their join time and become callable again as soon as the next person is called.</div>'
+      : "") +
   '</li>';
 }
 function statusPill(e){

@@ -40,6 +40,7 @@ import type pg from "pg";
 
 import {
   DEFAULT_MAX_SEND_ATTEMPTS,
+  callDeadlinePassed,
   carriedByCloseOfDay,
   checkTransition,
   initialStatusFor,
@@ -425,10 +426,24 @@ export async function callNext(input: {
   readonly counter?: string | null;
 }): Promise<Applied<CallNextOutcome>> {
   return withQueueLock<CallNextOutcome>(input.locationId, async (client) => {
-    const rows = await client.query<EntryRow>(
-      `SELECT id, status, joined_at, location_id, left_reason, confirmed_at
-         FROM entries
-        WHERE location_id = $1 AND status IN ('provisional', 'waiting')`,
+    // `deferred` is DERIVED HERE, inside the lock, and handed to the domain.
+    // The domain is pure and cannot query; if this column is missing the skip
+    // silently never happens, which is precisely the shape of defect this
+    // project keeps finding. The D1 proof exists to observe it rather than
+    // trust it.
+    const rows = await client.query<EntryRow & { deferred: boolean }>(
+      `SELECT e.id, e.status, e.joined_at, e.location_id, e.left_reason, e.confirmed_at,
+              EXISTS (
+                SELECT 1 FROM events d
+                 WHERE d.entry_id = e.id
+                   AND d.kind IN ('customer_not_ready', 'call_expiry')
+                   AND NOT EXISTS (
+                     SELECT 1 FROM events c
+                      WHERE c.location_id = e.location_id
+                        AND c.kind IN ('call_next', 'out_of_order_call')
+                        AND c.occurred_at > d.occurred_at)) AS deferred
+         FROM entries e
+        WHERE e.location_id = $1 AND e.status IN ('provisional', 'waiting')`,
       [input.locationId],
     );
 
@@ -436,6 +451,7 @@ export async function callNext(input: {
       id: r.id,
       status: r.status,
       joinedAt: r.joined_at,
+      deferred: r.deferred,
     }));
 
     // C0. Resolve the label to a counters row. NOT FOUND IS NOT AN ERROR and is
@@ -610,6 +626,159 @@ export async function undoCall(input: {
     reason: "operator undid an accidental call",
     extraSet: "counter = NULL, counter_id = NULL",
   });
+}
+
+// ---------------------------------------------------------------------------
+// The call response window. Spec 2026-09-05-call-response-window-design.md.
+// ---------------------------------------------------------------------------
+
+// Defined ONCE, here, because two callers send it: this module when the sweep
+// expires a call, and the inbound webhook when the customer declines. Two
+// copies would drift and a customer would learn the rule differently depending
+// on which way they arrived at it.
+export const DEFERRED_TEXT =
+  "No problem - we've moved you back one place. " +
+  "You keep your join time and we'll call you again shortly.";
+
+// The two business-INITIATED messages. Every other message this system sends is
+// a reply to something the customer sent; these two are sent because staff did
+// something. That distinction matters beyond style: outside the WhatsApp
+// session window a business-initiated message needs a pre-approved template,
+// which is a Meta process and not code. In the sandbox, and inside the window,
+// these send as ordinary messages.
+export const calledText = (name: string | null, counter: string | null): string =>
+  `${name ?? "Hello"}, you're up at ${counter ?? "the counter"}. ` +
+  `Reply READY within 2 minutes. ` +
+  `Reply NO if you need more time and we'll move you back one place.`;
+
+export const completeText = (name: string | null, counter: string | null): string =>
+  `Thanks for coming in${name === null ? "" : `, ${name}`}. ` +
+  `Your service at ${counter ?? "the counter"} is complete.`;
+
+// Tell a customer they have been called. SILENT FOR A WALK-IN: a reception or
+// QR entry has no contact, and warning about an undeliverable message on every
+// single call would train the operator to ignore the log.
+//
+// A send failure never changes queue state. The customer was called before this
+// ran, and a transport outage must not reach back and un-call them.
+export async function notifyEntry(input: {
+  readonly entryId: string;
+  readonly transport: Transport;
+  readonly compose: (name: string | null, counter: string | null) => string;
+}): Promise<void> {
+  const row = await writePool().query<{
+    contact: string | null;
+    name: string | null;
+    counter: string | null;
+  }>("SELECT contact, name, counter FROM entries WHERE id = $1", [input.entryId]);
+  const found = row.rows[0];
+  if (found === undefined) return;
+  if (found.contact === null || found.contact === "") return;
+
+  const delivery = await input.transport.send({
+    to: found.contact,
+    body: input.compose(found.name, found.counter),
+    entryId: input.entryId,
+  });
+  if (!delivery.ok) console.warn(`[notify] not sent for ${input.entryId}: ${delivery.reason}`);
+}
+
+// A called customer who is not ready yet. The entry returns to `waiting` with
+// its joined_at UNTOUCHED, so it does not move in the line at all; what changes
+// is that the fairness log now carries a deferral event, and readQueue derives
+// `deferred` from that until the next person is called.
+//
+// The status change is conditional by construction: applyStatusChange refuses a
+// transition whose `from` does not match the row it loaded under the queue
+// lock, so a check-in landing in the same instant wins and this becomes a
+// no-op rather than clobbering it.
+export async function deferEntry(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly trigger: "customer_not_ready" | "call_expiry";
+  readonly actor: string;
+  // Optional: the inbound path already answers the customer in its own reply,
+  // and sending here too would deliver the same sentence twice.
+  readonly transport?: Transport;
+}): Promise<Applied<{ readonly entryId: string }>> {
+  const moved = await counterTransition({
+    entryId: input.entryId,
+    locationId: input.locationId,
+    to: "waiting",
+    trigger: input.trigger,
+    actor: input.actor,
+    reason:
+      input.trigger === "customer_not_ready"
+        ? "customer said they were not ready"
+        : "no reply within the call response window",
+    // The counter is released. Somebody else is about to use it.
+    extraSet: "counter = NULL, counter_id = NULL",
+  });
+  if (!moved.ok) return moved;
+
+  if (input.transport !== undefined) {
+    const to = await writePool().query<{ contact: string | null }>(
+      "SELECT contact FROM entries WHERE id = $1",
+      [input.entryId],
+    );
+    const contact = to.rows[0]?.contact ?? null;
+    if (contact !== null && contact !== "") {
+      const delivery = await input.transport.send({
+        to: contact,
+        body: DEFERRED_TEXT,
+        entryId: input.entryId,
+      });
+      // A failed send does NOT undo the deferral. The place in line already
+      // moved; a transport outage must not reach back and change queue state.
+      if (!delivery.ok) console.warn(`[defer] notice not sent: ${delivery.reason}`);
+    }
+  }
+
+  return moved;
+}
+
+// LAZY EXPIRY. There is no scheduler in this codebase and this does not add
+// one: the deadline is evaluated whenever somebody looks at the branch, which
+// in practice is the desk console's board poll.
+//
+// `called_at` is DERIVED from the fairness log, not stored. Nothing holds a
+// called_at column, so nothing can disagree with the log about when the call
+// happened.
+export async function sweepCallDeadlines(input: {
+  readonly locationId: string;
+  readonly transport: Transport;
+}): Promise<Applied<{ readonly deferredEntryIds: readonly string[] }>> {
+  const candidates = await writePool().query<{ id: string; called_at: Date | null }>(
+    `SELECT e.id,
+            (SELECT max(c.occurred_at) FROM events c
+              WHERE c.entry_id = e.id
+                AND c.kind IN ('call_next', 'out_of_order_call')) AS called_at
+       FROM entries e
+      WHERE e.location_id = $1 AND e.status = 'called'`,
+    [input.locationId],
+  );
+
+  const now = new Date();
+  const deferredEntryIds: string[] = [];
+
+  for (const row of candidates.rows) {
+    // NO CALL EVENT, NO SWEEP. An entry called before this feature existed, or
+    // by a path that wrote no event, has no deadline that can be established.
+    // Guessing one would expire somebody on a number nobody recorded.
+    if (row.called_at === null) continue;
+    if (!callDeadlinePassed(row.called_at, now)) continue;
+
+    const moved = await deferEntry({
+      entryId: row.id,
+      locationId: input.locationId,
+      trigger: "call_expiry",
+      actor: "system",
+      transport: input.transport,
+    });
+    if (moved.ok) deferredEntryIds.push(row.id);
+  }
+
+  return { ok: true, value: { deferredEntryIds } };
 }
 
 export async function leaveQueue(input: {

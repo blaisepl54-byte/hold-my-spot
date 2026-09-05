@@ -15,8 +15,14 @@ import express from "express";
 import {
   callNext,
   checkIn,
+  calledText,
   closeOfDay,
+  completeText,
   completeService,
+  deferEntry,
+  DEFERRED_TEXT,
+  notifyEntry,
+  sweepCallDeadlines,
   confirmEntry,
   joinQueue,
   leaveQueue,
@@ -144,6 +150,44 @@ function send(res: express.Response, result: { ok: boolean; reason?: string; val
     res.status(409).json({ ok: false, reason: result.reason });
   }
 }
+
+// How many people are ahead, plus one. A COUNT, not an estimate, so it is exact
+// and R-G does not apply to it: R-G governs how long a wait is claimed to be,
+// not how many people can be seen standing in front of you.
+//
+// Counted over `waiting` only, matching countedForWaitMath: an unconfirmed
+// entry holds its place but is not something to promise a customer they are
+// behind, because it may never confirm.
+async function positionOf(locationId: string, entryId: string): Promise<number> {
+  const queue = await readQueue(locationId);
+  const target = queue.find((e) => e.id === entryId);
+  if (target === undefined) return 0;
+  const ahead = queue.filter(
+    (e) => e.status === "waiting" && e.joined_at < target.joined_at,
+  ).length;
+  return ahead + 1;
+}
+
+// The line a customer reads after they are placed or confirmed. One definition,
+// because the position and the wait must agree with each other and with what
+// the board shows, and three call sites composing it separately is how they
+// stop agreeing.
+async function placeLine(locationId: string, entryId: string): Promise<string> {
+  const position = await positionOf(locationId, entryId);
+  const estimate = await estimateWaitFor({
+    locationId,
+    aheadInQueue: Math.max(0, position - 1),
+  });
+  return `You're number ${String(position)} in line. ${renderEstimate(estimate)}`;
+}
+
+const NAME_ASK =
+  "Before we hold your place, what name should we put it under? " +
+  "Please use the name on the ID you'll present at the counter.";
+
+const CALL_WINDOW_NOTICE =
+  "When we call you, you have 2 minutes to reply READY, or NO if you need more time - " +
+  "then you move back one place, keeping your join time.";
 
 export function createApp(): express.Express {
   const app = express();
@@ -277,6 +321,14 @@ export function createApp(): express.Express {
       res.status(400).json({ ok: false, reason: "locationId is required" });
       return;
     }
+    // LAZY EXPIRY, before the read. There is no scheduler in this codebase and
+    // this does not add one: the deadline is evaluated whenever somebody looks
+    // at the branch, and the desk console's poll is what looks. A write inside
+    // a GET is unusual and is called out rather than slipped in; it is
+    // conditional on the row still being `called`, so a check-in landing in the
+    // same instant wins and this becomes a no-op.
+    await sweepCallDeadlines({ locationId, transport: outboundTransport() });
+
     const [queue, totals, events] = await Promise.all([
       readQueue(locationId),
       readDayTotals(locationId),
@@ -364,14 +416,27 @@ export function createApp(): express.Express {
       res.status(400).json({ ok: false, reason: "locationId is required" });
       return;
     }
-    send(
-      res,
-      await callNext({
-        locationId: body.locationId,
-        actor: (req as Authed).session?.userId ?? body.actor ?? "operator",
-        counter: body.counter ?? null,
-      }),
-    );
+    // Lazy expiry BEFORE selection, so a call that has already run out of time
+    // has released its counter and its holder is stepped over rather than being
+    // called a second time while still holding an expired call.
+    await sweepCallDeadlines({ locationId: body.locationId, transport: outboundTransport() });
+
+    const called = await callNext({
+      locationId: body.locationId,
+      actor: (req as Authed).session?.userId ?? body.actor ?? "operator",
+      counter: body.counter ?? null,
+    });
+    // The notification is the point of this feature: before it, calling someone
+    // told them nothing and they had to watch the board, which is the thing
+    // this product exists to replace.
+    if (called.ok && called.value.calledEntryId !== null) {
+      await notifyEntry({
+        entryId: called.value.calledEntryId,
+        transport: outboundTransport(),
+        compose: calledText,
+      });
+    }
+    send(res, called);
   });
 
   // P2. The out-of-order override, I7's named approver. MANAGER-GATED, and the
@@ -391,17 +456,25 @@ export function createApp(): express.Express {
       return;
     }
     const session = (req as Authed).session;
-    send(
-      res,
-      await callNext({
-        locationId: body.locationId,
-        actor: session?.userId ?? "operator",
-        approver: session?.userId ?? body.approver ?? null,
-        outOfOrderEntryId: body.entryId,
-        reason: typeof body.reason === "string" ? body.reason : null,
-        counter: body.counter ?? null,
-      }),
-    );
+    const called = await callNext({
+      locationId: body.locationId,
+      actor: session?.userId ?? "operator",
+      approver: session?.userId ?? body.approver ?? null,
+      outOfOrderEntryId: body.entryId,
+      reason: typeof body.reason === "string" ? body.reason : null,
+      counter: body.counter ?? null,
+    });
+    // An out-of-order call is still a call. The customer gets the same message
+    // and the same two minutes; being called early does not make the response
+    // window somebody else's problem.
+    if (called.ok && called.value.calledEntryId !== null) {
+      await notifyEntry({
+        entryId: called.value.calledEntryId,
+        transport: outboundTransport(),
+        compose: calledText,
+      });
+    }
+    send(res, called);
   });
 
   // P2/FE-001. The admin's cross-branch overview. ADMIN-GATED: it is the one
@@ -430,7 +503,14 @@ export function createApp(): express.Express {
       // P1: through the SELECTOR, not the simulated instance directly. A survey
       // that only ever reaches the simulated inbox cannot be answered from the
       // handset that was served.
-      if (done.ok) await sendSurvey({ entryId, locationId, transport: outboundTransport() });
+      if (done.ok) {
+        // The service closes BEFORE the survey opens. A survey arriving as the
+        // first thing a customer hears after being served reads as an
+        // interrogation; a line saying the visit is finished is what makes the
+        // question that follows it a reasonable thing to ask.
+        await notifyEntry({ entryId, transport: outboundTransport(), compose: completeText });
+        await sendSurvey({ entryId, locationId, transport: outboundTransport() });
+      }
       return done;
     },
     "no-show": (entryId, locationId, actor) => markNoShow({ entryId, locationId, actor }),
@@ -626,15 +706,57 @@ export function createApp(): express.Express {
         // R-G: renderEstimate carries a RANGE or the honest refusal, never a
         // point value, and it owns both wordings so this caller cannot soften
         // one into the other.
+        // ASKS FOR ONE THING. The old reply asked for a confirmation AND a name
+        // in the same breath; only one reply can be first, customers sent the
+        // YES they were told to send first, and the name never arrived. The
+        // board then showed a bare phone number for the whole visit.
+        //
+        // The estimate is still computed and stored BEFORE the join, unchanged,
+        // so the stored prediction remains the one this customer was given. It
+        // is simply not quoted until there is a name to quote it to.
         reply = joined.ok
-          ? `You are in the queue. Reply YES to confirm and hold your place, ` +
-            `and reply with your name so the teller can greet you. ${renderEstimate(atJoin)}`
+          ? NAME_ASK
           : "We could not add you to the queue just now. Please ask at reception.";
+      } else if (intent.kind === "affirmative" && existing?.status === "called") {
+        // READY. The same check-in the desk performs, arrived at from the other
+        // end of the conversation. It sits ABOVE the provisional branch and is
+        // guarded on status, so nothing about confirming a place changes shape.
+        const arrived = await checkIn({ entryId: existing.id, locationId, actor: "customer" });
+        reply = arrived.ok
+          ? "Thank you - please come to the counter now."
+          : "We could not check you in just now. Please ask at reception.";
+      } else if (intent.kind === "negative" && existing?.status === "called") {
+        // NOT READY. No transport is passed: this reply already carries
+        // DEFERRED_TEXT, and sending it here too would deliver the customer the
+        // same sentence twice for one message they sent.
+        const moved = await deferEntry({
+          entryId: existing.id,
+          locationId,
+          trigger: "customer_not_ready",
+          actor: "customer",
+        });
+        reply = moved.ok
+          ? DEFERRED_TEXT
+          : "We could not move your place just now. Please ask at reception.";
       } else if (intent.kind === "affirmative" && existing?.status === "provisional") {
-        const confirmed = await confirmEntry({ entryId: existing.id, locationId, actor: "customer" });
-        reply = confirmed.ok
-          ? "Confirmed. You have kept your place in line."
-          : "We could not confirm just now. Please ask at reception.";
+        if (existing.name === null) {
+          // THE NAME IS THE GATE. Confirming an unnamed entry is what produced a
+          // board showing a bare phone number, which is a privacy defect on any
+          // screen a stranger can see. Applies to whatsapp only: qr and
+          // reception enter at `waiting` already confirmed (X8), never pass
+          // through provisional, and so never reach this branch.
+          reply = NAME_ASK;
+        } else {
+          const confirmed = await confirmEntry({
+            entryId: existing.id,
+            locationId,
+            actor: "customer",
+          });
+          reply = confirmed.ok
+            ? `Confirmed, ${existing.name}. ${await placeLine(locationId, existing.id)} ` +
+              CALL_WINDOW_NOTICE
+            : "We could not confirm just now. Please ask at reception.";
+        }
       } else if (intent.kind === "leave" && existing?.status === "waiting") {
         const left = await leaveQueue({
           entryId: existing.id,
@@ -662,7 +784,8 @@ export function createApp(): express.Express {
           name: intent.text,
         });
         reply = named.ok
-          ? "Thank you. Reply YES to confirm and hold your place."
+          ? `Thanks, ${intent.text}. ${await placeLine(locationId, existing.id)} ` +
+            `Reply YES to confirm and hold your place.`
           : "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";
       } else {
         reply = "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";

@@ -34,6 +34,8 @@ export type Trigger =
   | "check_in"
   | "undo_call"
   | "undo_check_in"
+  | "customer_not_ready"
+  | "call_expiry"
   | "grace_expiry"
   | "staff_marks_noshow"
   | "complete"
@@ -67,6 +69,15 @@ export const TRANSITIONS: readonly Transition[] = [
   { from: "waiting", to: "left", trigger: "customer_leaves", requiresApprover: false },
   { from: "called", to: "serving", trigger: "check_in", requiresApprover: false },
   { from: "called", to: "waiting", trigger: "undo_call", requiresApprover: false },
+  // The call response window. Both are called -> waiting, both RETAIN joined_at,
+  // and both are UNGATED: this is the automatic application of a rule the
+  // customer was told in writing, not a human REVERSAL of one, which is the
+  // distinction v4 3.5 draws. They are kept separate from undo_call, and from
+  // each other, so the fairness log records whether the customer declined or
+  // simply never answered. Those are different facts about a person and
+  // collapsing them would lose the only evidence of which happened.
+  { from: "called", to: "waiting", trigger: "customer_not_ready", requiresApprover: false },
+  { from: "called", to: "waiting", trigger: "call_expiry", requiresApprover: false },
   { from: "called", to: "noshow", trigger: "grace_expiry", requiresApprover: false },
   { from: "called", to: "noshow", trigger: "staff_marks_noshow", requiresApprover: false },
   { from: "serving", to: "served", trigger: "complete", requiresApprover: false },
@@ -139,6 +150,12 @@ export type QueueEntry = {
   readonly id: string;
   readonly status: Status;
   readonly joinedAt: Date;
+  // DERIVED BY THE CALLER from the fairness log and passed in, so this module
+  // stays pure and no deferral state is ever stored on the entry. Absent means
+  // not deferred. It changes exactly one thing: whether this entry is callable
+  // right now. It does not change its position, because position is joinedAt
+  // and joinedAt is not writable by anything (I1).
+  readonly deferred?: boolean;
 };
 
 // steppedOver is a FIRST-CLASS RESULT, not a side note (v4 line 145). The
@@ -163,14 +180,53 @@ export function selectNextToCall(entries: readonly QueueEntry[]): CallNextSelect
   const steppedOver: QueueEntry[] = [];
 
   for (const entry of inLine) {
-    if (entry.status === "waiting") {
+    if (entry.status === "waiting" && entry.deferred !== true) {
       return { ok: true, next: entry, steppedOver };
     }
-    // provisional: holds its place, is skipped, and is REPORTED.
+    // provisional holds its place, is skipped, and is REPORTED. A deferred
+    // entry does exactly the same thing for exactly the same reason: it keeps
+    // joinedAt and is simply not callable yet. One mechanism, two causes.
     steppedOver.push(entry);
   }
 
+  // EXHAUSTION. If deferral is the ONLY thing standing between the counter and
+  // the queue, the earliest deferred entry becomes callable again.
+  //
+  // A deferral costs its holder exactly one place, and it can only cost that
+  // place to somebody. With nobody else to yield to there is no place to lose,
+  // so holding the line closed would punish a customer for a slot that does not
+  // exist, and would let a branch deadlock its own queue into uncallable.
+  const firstDeferred = inLine.find((e) => e.status === "waiting" && e.deferred === true);
+  if (firstDeferred !== undefined) {
+    return {
+      ok: true,
+      next: firstDeferred,
+      steppedOver: steppedOver.filter((e) => e.id !== firstDeferred.id),
+    };
+  }
+
   return { ok: false, reason: "empty_queue", steppedOver };
+}
+
+// ---------------------------------------------------------------------------
+// The call response window.
+// ---------------------------------------------------------------------------
+
+// DELIBERATELY NOT location.grace_seconds (300). Grace is how long a counter
+// waits for a body to arrive; this is how long we wait for a reply to a
+// message. Two different questions, and a single number pressed into both jobs
+// would be wrong for at least one of them.
+export const CALL_RESPONSE_SECONDS = 120;
+
+// `calledAt` is DERIVED from the fairness log by the caller (the occurred_at of
+// the entry's most recent call event), not read from a column. Nothing stores
+// it, so nothing can disagree with the log about when the call happened.
+export function callDeadlinePassed(
+  calledAt: Date,
+  now: Date,
+  windowSeconds: number = CALL_RESPONSE_SECONDS,
+): boolean {
+  return now.getTime() - calledAt.getTime() > windowSeconds * 1000;
 }
 
 // I3: unconfirmed entries are excluded from wait math. Stated as a function so

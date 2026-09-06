@@ -1533,14 +1533,40 @@ function entryActions(e, isNext){
   }
 }
 
+/* THE TWO GATES, named so they can be pinned by a test that reads THIS FILE
+   and evaluates THIS FUNCTION. Extracted after 2026-09-06, when a stale
+   client-side cache offered "Confirm and restore" on a SERVING entry and the
+   API answered, correctly, "No transition serving -> waiting on
+   customer_confirms". The block also suppresses the row's real actions, so the
+   same staleness left a customer mid-service with no Complete button.
+
+   Both gates read LIVE STATUS. steppedOver is a cache of one call-next
+   response and cannot know the entry has since been confirmed over WhatsApp,
+   called, or served; deferred is server-derived and fresh, but still only
+   means anything while the entry is waiting. */
+function stepGates(e){
+  return {
+    stepped: !!e.steppedOver && e.status === "provisional",
+    deferred: !!e.deferred && e.status === "waiting"
+  };
+}
 function entryRow(e, i, isNext){
-  const stepped = !!e.steppedOver;
-  /* A deferred entry takes the SAME detour rail a stepped-over one takes,
-     because it is the same fact about the line: this person is being passed
-     and is keeping their place. No new visual language is invented for it.
+  const gates = stepGates(e);
+  /* GATED ON LIVE STATUS, never on the cache alone.
+     STEPPED is a client-side map built from ONE call-next response. It cannot
+     know that the entry has since confirmed over WhatsApp, been called, or is
+     being served, and it is only cleared when this console performs the verb
+     itself. Rendering the provisional-only remedy from that stale cache is
+     what produced "No transition serving -> waiting on customer_confirms",
+     and because the stepped block SUPPRESSES the real actions below, it also
+     left a serving customer with no Complete button until a page refresh.
+     Server state decides; the cache only supplies the wording. */
+  const stepped = gates.stepped;
+  /* A deferred entry takes the SAME detour rail, because it is the same fact
+     about the line: this person is being passed and is keeping their place.
      It keeps its actions, though, because unlike a provisional ghost it is a
      confirmed customer the desk may still call. */
-  const deferred = !!e.deferred;
+  const deferred = gates.deferred;
   const name = e.name
     ? esc(e.name)
     : '<span class="unnamed">No name yet. ' + esc(e.contact || "No contact on file either.") + '</span>';
@@ -1626,7 +1652,9 @@ function screenBoard(){
   else list = '<ul class="line' + stale + '">' +
       q.map((e,i) => entryRow(e, i, e.id === nextId)).join("") + '</ul>';
 
-  const stepped = q.filter(e => e.steppedOver).length;
+  /* Same gate as entryRow, for the same reason: an entry that has moved on is
+     not still being stepped over, and counting it would contradict the rows. */
+  const stepped = q.filter(e => e.steppedOver && e.status === "provisional").length;
 
   return refusalHTML() +
   '<div class="section-head"><div class="sh-l">' +

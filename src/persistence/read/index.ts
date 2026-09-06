@@ -266,6 +266,10 @@ export type ContactEntry = {
   readonly id: string;
   readonly status: string;
   readonly name: string | null;
+  // Carried so the inbound flow can tell "still owes us a service type" from
+  // "ready to confirm" without a second query. A null here on a whatsapp entry
+  // is what the service prompt exists to fill.
+  readonly service_type_id: string | null;
 };
 
 export async function readEntryByContact(
@@ -273,7 +277,7 @@ export async function readEntryByContact(
   contact: string,
 ): Promise<ContactEntry | undefined> {
   const result = await readPool().query<ContactEntry>(
-    `SELECT id, status, name
+    `SELECT id, status, name, service_type_id
        FROM entries
       WHERE location_id = $1
         AND contact = $2

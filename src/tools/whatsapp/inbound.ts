@@ -153,3 +153,43 @@ export function parseSurveyReply(body: string): SurveyReply {
 // second one that the simulated surface cannot see and no test of the adapter
 // covers.
 export const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+
+// ---------------------------------------------------------------------------
+// The service choice. PURE, and deliberately NOT an InboundIntent.
+//
+// THE DIGIT COLLISION IS THE WHOLE REASON THIS IS SEPARATE. "1" is already in
+// the affirmative keyword set and "2" in the negative one, because the survey
+// asks numbered questions. A customer answering "2" to a service menu is not
+// declining anything. The parser cannot tell those apart and must not try:
+// only the caller, which knows whether this entry still owes us a service
+// type, can resolve it. So this is a FUNCTION THE CALLER CHOOSES TO RUN, in
+// the same spirit as parseSurveyReply, rather than a new intent that would
+// silently outrank yes and no everywhere else.
+//
+// `labels` arrives in the order the menu was printed, which is the branch's own
+// sort_order. The returned index refers to that same array.
+export function parseServiceChoice(body: string, labels: readonly string[]): number | null {
+  const text = normalise(body);
+  if (text === "") return null;
+
+  // A bare number, matching the printed menu. 1-based for the customer,
+  // 0-based on the way out.
+  if (/^\d+$/.test(text)) {
+    const picked = Number(text) - 1;
+    return picked >= 0 && picked < labels.length ? picked : null;
+  }
+
+  // Or the label itself, however they typed it. Exact first, so a branch with
+  // both "Card services" and "Card services (business)" cannot have the
+  // shorter one swallow the longer.
+  const exact = labels.findIndex((l) => normalise(l) === text);
+  if (exact !== -1) return exact;
+
+  // Then a containment match, but ONLY when exactly one label matches.
+  // Ambiguity returns null and the menu is shown again, because guessing which
+  // service someone meant puts them in the wrong queue with the wrong estimate.
+  const hits = labels
+    .map((l, i) => ({ i, l: normalise(l) }))
+    .filter((x) => x.l.includes(text) || text.includes(x.l));
+  return hits.length === 1 ? (hits[0]?.i ?? null) : null;
+}

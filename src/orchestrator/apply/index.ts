@@ -1105,6 +1105,40 @@ export async function recordSurveyResponse(input: {
 }
 
 // ---------------------------------------------------------------------------
+// The service a WhatsApp joiner came for. Reception has always had a picker;
+// the remote channel never asked, so every WhatsApp entry carried a null
+// service type and sat outside every bucket the measurement layer keys on.
+//
+// Narrow on purpose, and narrow the same way recordEntryName is: it sets the
+// service type ONLY when none is set, and the service type must belong to THIS
+// branch and be active. A customer cannot name a service another branch offers,
+// and cannot re-pick after the fact, because the estimate they were given was
+// computed from the first answer.
+//
+// NOT a fairness event. Saying what you came for changes nobody's place in
+// line, so it writes nothing to `events` - the same reasoning as the name and
+// the survey.
+// ---------------------------------------------------------------------------
+export async function recordEntryServiceType(input: {
+  readonly entryId: string;
+  readonly locationId: string;
+  readonly serviceTypeId: string;
+}): Promise<Applied<{ readonly entryId: string }>> {
+  const updated = await writePool().query<{ id: string }>(
+    `UPDATE entries SET service_type_id = $3
+      WHERE id = $1 AND location_id = $2 AND service_type_id IS NULL
+        AND EXISTS (SELECT 1 FROM service_types st
+                     WHERE st.id = $3 AND st.location_id = $2 AND st.active)
+      RETURNING id`,
+    [input.entryId, input.locationId, input.serviceTypeId],
+  );
+  if (updated.rows[0] === undefined) {
+    return { ok: false, reason: "entry not found, already has a service, or unknown service" };
+  }
+  return { ok: true, value: { entryId: input.entryId } };
+}
+
+// ---------------------------------------------------------------------------
 // FE-001. Recording a guest's name after the fact. The WhatsApp flow learns
 // the name one message AFTER the join, so this is an UPDATE, and it is
 // deliberately narrow: name only, only when none is set, never overwriting a

@@ -29,6 +29,7 @@ import {
   markNoShow,
   estimateWaitFor,
   recordEntryName,
+  recordEntryServiceType,
   recordSurveyResponse,
   removeProvisional,
   sendConfirmationPrompt,
@@ -54,7 +55,7 @@ import type { Channel } from "../domain/index.ts";
 import { SimulatedTransport } from "../tools/whatsapp/simulated.ts";
 import type { Transport } from "../tools/whatsapp/index.ts";
 import { TwilioTransport, twilioConfigFromEnv } from "../tools/whatsapp/twilio.ts";
-import { EMPTY_TWIML, normaliseSender, parseInbound, parseSurveyReply } from "../tools/whatsapp/inbound.ts";
+import { EMPTY_TWIML, normaliseSender, parseInbound, parseServiceChoice, parseSurveyReply } from "../tools/whatsapp/inbound.ts";
 import { publicWebhookUrl, validateTwilioSignature } from "../tools/whatsapp/signature.ts";
 import { describeBasis, renderEstimate } from "../agents/wait-time.ts";
 import { readAdherence, readDashboard } from "../persistence/read/dashboard.ts";
@@ -172,13 +173,34 @@ async function positionOf(locationId: string, entryId: string): Promise<number> 
 // because the position and the wait must agree with each other and with what
 // the board shows, and three call sites composing it separately is how they
 // stop agreeing.
-async function placeLine(locationId: string, entryId: string): Promise<string> {
+async function placeLine(
+  locationId: string,
+  entryId: string,
+  // Once a customer has said what they came for, the estimate is theirs rather
+  // than the branch's average. The narrower bucket answers when it clears the
+  // sample gate and falls back on its own when it does not, so passing this can
+  // only make the number better informed, never less honest.
+  serviceTypeId: string | null = null,
+): Promise<string> {
   const position = await positionOf(locationId, entryId);
   const estimate = await estimateWaitFor({
     locationId,
     aheadInQueue: Math.max(0, position - 1),
+    serviceTypeId,
   });
   return `You're number ${String(position)} in line. ${renderEstimate(estimate)}`;
+}
+
+// The menu, built from the branch's own live list. A branch that adds or
+// retires a service changes this prompt without a deploy, which is what
+// migration 005 made service types data for (R-I).
+function serviceMenuText(name: string | null, labels: readonly string[]): string {
+  const lines = labels.map((l, i) => `${String(i + 1)}. ${l}`).join("\n");
+  return (
+    `${name === null ? "Thanks" : `Thanks, ${name}`}. What are you here for today?\n` +
+    `${lines}\n` +
+    `Reply with the number.`
+  );
 }
 
 const NAME_ASK =
@@ -717,6 +739,41 @@ export function createApp(): express.Express {
         reply = joined.ok
           ? NAME_ASK
           : "We could not add you to the queue just now. Please ask at reception.";
+      } else if (
+        // STILL OWES US A SERVICE TYPE. This branch sits ABOVE yes and no on
+        // purpose: "1" parses as affirmative and "2" as negative, so a customer
+        // answering the menu would otherwise have their answer read as a
+        // confirmation or a refusal. Resolved against state, exactly as the
+        // survey resolves the same collision.
+        //
+        // Guarded to provisional and waiting, so a CALLED customer's READY and
+        // NO still reach their own branches below.
+        existing !== undefined &&
+        existing.name !== null &&
+        existing.service_type_id === null &&
+        (existing.status === "provisional" || existing.status === "waiting") &&
+        intent.kind !== "leave"
+      ) {
+        const menu = await readServiceTypes(locationId);
+        const labels = menu.map((m) => m.label);
+        const picked = parseServiceChoice(String(params["Body"] ?? ""), labels);
+        const chosen = picked === null ? undefined : menu[picked];
+        if (chosen === undefined) {
+          // Unrecognised, or ambiguous between two services. The menu is shown
+          // again rather than a guess being made: a wrong pick puts them in the
+          // wrong bucket and hands them somebody else's estimate.
+          reply = serviceMenuText(existing.name, labels);
+        } else {
+          const set = await recordEntryServiceType({
+            entryId: existing.id,
+            locationId,
+            serviceTypeId: chosen.id,
+          });
+          reply = set.ok
+            ? `${chosen.label}. ${await placeLine(locationId, existing.id, chosen.id)} ` +
+              `Reply YES to confirm and hold your place.`
+            : "We could not record that just now. Please ask at reception.";
+        }
       } else if (intent.kind === "affirmative" && existing?.status === "called") {
         // READY. The same check-in the desk performs, arrived at from the other
         // end of the conversation. It sits ABOVE the provisional branch and is
@@ -753,7 +810,8 @@ export function createApp(): express.Express {
             actor: "customer",
           });
           reply = confirmed.ok
-            ? `Confirmed, ${existing.name}. ${await placeLine(locationId, existing.id)} ` +
+            ? `Confirmed, ${existing.name}. ` +
+              `${await placeLine(locationId, existing.id, existing.service_type_id)} ` +
               CALL_WINDOW_NOTICE
             : "We could not confirm just now. Please ask at reception.";
         }
@@ -783,9 +841,12 @@ export function createApp(): express.Express {
           locationId,
           name: intent.text,
         });
+        // The name hands straight to the service menu rather than to the
+        // confirmation. Position and wait are quoted AFTER the service is
+        // known, because that is the point at which the number is theirs
+        // rather than the branch's average.
         reply = named.ok
-          ? `Thanks, ${intent.text}. ${await placeLine(locationId, existing.id)} ` +
-            `Reply YES to confirm and hold your place.`
+          ? serviceMenuText(intent.text, (await readServiceTypes(locationId)).map((m) => m.label))
           : "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";
       } else {
         reply = "Reply JOIN to take a place in line, YES to confirm, or LEAVE to give up your place.";

@@ -25,6 +25,7 @@
     "b6": "node --env-file=.env scripts/b6-console-proof.ts",
     "c6": "node --env-file=.env scripts/c6-binding-proof.ts",
     "d1": "node --env-file=.env scripts/d1-call-response-proof.ts",
+    "d2": "node --env-file=.env scripts/d2-join-flow-proof.ts",
     "c0": "node --env-file=.env scripts/c0-identities-proof.ts",
     "c1": "node --env-file=.env scripts/c1-service-record-proof.ts",
     "c2": "node --env-file=.env scripts/c2-survey-proof.ts",

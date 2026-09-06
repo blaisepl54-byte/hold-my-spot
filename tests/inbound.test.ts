@@ -7,6 +7,7 @@ import {
   EMPTY_TWIML,
   normaliseSender,
   parseInbound,
+  parseServiceChoice,
   parseSurveyReply,
 } from "../src/tools/whatsapp/inbound.ts";
 
@@ -156,4 +157,58 @@ test("a real name is still unknown text, so name capture keeps working", () => {
     kind: "unknown",
     text: "Marcia Bennett",
   });
+});
+
+// --- the service menu ------------------------------------------------------
+
+const SERVICES = [
+  "Account opening or closing",
+  "Deposits and withdrawals",
+  "Card services",
+  "General enquiry",
+];
+
+test("a menu number picks the service at that position, 1-based", () => {
+  assert.equal(parseServiceChoice("1", SERVICES), 0);
+  assert.equal(parseServiceChoice("3", SERVICES), 2);
+  assert.equal(parseServiceChoice("4", SERVICES), 3);
+});
+
+test("THE DIGIT COLLISION: 1 and 2 are yes and no to the intent parser, and a service here", () => {
+  // Same two strings, two meanings. The parser cannot tell; the caller must,
+  // and this is the pin on that being true.
+  assert.deepEqual(parseInbound("1"), { kind: "affirmative" });
+  assert.deepEqual(parseInbound("2"), { kind: "negative" });
+  assert.equal(parseServiceChoice("1", SERVICES), 0);
+  assert.equal(parseServiceChoice("2", SERVICES), 1);
+});
+
+test("a number outside the menu is refused rather than clamped", () => {
+  assert.equal(parseServiceChoice("0", SERVICES), null);
+  assert.equal(parseServiceChoice("9", SERVICES), null);
+});
+
+test("the label works too, in any case and with punctuation", () => {
+  assert.equal(parseServiceChoice("Card services", SERVICES), 2);
+  assert.equal(parseServiceChoice("card services!", SERVICES), 2);
+  assert.equal(parseServiceChoice("CARD SERVICES", SERVICES), 2);
+});
+
+test("a partial label matches only when exactly one service can be meant", () => {
+  assert.equal(parseServiceChoice("card", SERVICES), 2);
+  // Ambiguity must NOT guess: a wrong pick puts the customer in the wrong
+  // bucket and hands them somebody else's estimate. "services" fits both of
+  // these, so the honest answer is null and the menu is shown again.
+  const ambiguous = ["Card services", "Account services"];
+  assert.equal(parseServiceChoice("services", ambiguous), null);
+});
+
+test("an exact label wins over a longer label that contains it", () => {
+  const overlapping = ["Card services", "Card services business"];
+  assert.equal(parseServiceChoice("card services", overlapping), 0);
+});
+
+test("nonsense returns null so the menu can be shown again", () => {
+  assert.equal(parseServiceChoice("", SERVICES), null);
+  assert.equal(parseServiceChoice("hello there", SERVICES), null);
 });
